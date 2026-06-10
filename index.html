@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Hand-tracking 3D clay sculpting in your browser. Use your hands to push, pull, and pinch virtual clay.">
+<meta name="theme-color" content="#1a1410">
+<!-- OGP（SNSシェア時のカード表示） -->
+<meta property="og:title" content="Clay Sculpt — Hand Tracking 3D">
+<meta property="og:description" content="Push, pull and pinch virtual clay with your hands in the browser.">
+<meta property="og:type" content="website">
+<!-- PWA対応（ホーム画面追加） -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clay Sculpt">
+<title>Clay Sculpt</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1410;
+    color: #e8d5b0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #header {
+    padding: 12px 20px;
+    background: rgba(0,0,0,0.4);
+    border-bottom: 1px solid #3a2e20;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+  }
+
+  #header h1 {
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: #c8a96e;
+    text-transform: uppercase;
+  }
+
+  .mode-btn {
+    padding: 4px 12px;
+    border: 1px solid #5a4a30;
+    background: transparent;
+    color: #a08060;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.1em;
+  }
+  .mode-btn:hover, .mode-btn.active {
+    background: #3a2e20;
+    color: #e8d5b0;
+    border-color: #c8a96e;
+  }
+
+  #status {
+    margin-left: auto;
+    font-size: 11px;
+    color: #7a6a50;
+    letter-spacing: 0.05em;
+  }
+  #status.active { color: #90c878; }
+
+  #main {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #canvas-container {
+    flex: 1;
+    position: relative;
+  }
+
+  #three-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* カメラ映像（小さく右下） */
+  #video-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 200px;
+    height: 150px;
+    border: 1px solid #3a2e20;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+  }
+  #video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #hand-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transform: scaleX(-1);
+  }
+
+  /* パラメータパネル */
+  #params {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid #3a2e20;
+    border-radius: 4px;
+    padding: 14px;
+    min-width: 180px;
+    font-size: 11px;
+  }
+  #params h3 {
+    color: #c8a96e;
+    margin-bottom: 10px;
+    letter-spacing: 0.15em;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  .param-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 10px;
+  }
+  .param-row label { color: #8a7a60; }
+  .param-row input[type=range] {
+    width: 80px;
+    accent-color: #c8a96e;
+  }
+  .param-row span { color: #e8d5b0; min-width: 28px; text-align: right; }
+
+  /* ヒント */
+  #hints {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 10px;
+    color: #5a4a30;
+    line-height: 1.8;
+    letter-spacing: 0.05em;
+  }
+
+  /* カメラなしモード：マウスで操作 */
+  #mode-badge {
+    position: absolute;
+    top: 20px;
+    right: 230px;
+    font-size: 10px;
+    color: #7a6a50;
+    letter-spacing: 0.1em;
+    background: rgba(0,0,0,0.5);
+    padding: 4px 8px;
+    border-radius: 2px;
+    border: 1px solid #3a2e20;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Clay Sculpt</h1>
+  <button class="mode-btn active" id="btn-push" onclick="setTool('push')">PUSH</button>
+  <button class="mode-btn" id="btn-pull" onclick="setTool('pull')">PULL</button>
+  <button class="mode-btn" id="btn-smooth" onclick="setTool('smooth')">SMOOTH</button>
+  <button class="mode-btn" onclick="resetMesh()">RESET</button>
+  <div id="status">CAMERA: CONNECTING...</div>
+  <button class="mode-btn" onclick="document.getElementById('help-modal').style.display='flex'"
+    style="margin-left:8px">?</button>
+</div>
+
+<!-- ヘルプモーダル -->
+<div id="help-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+  z-index:100; align-items:center; justify-content:center;"
+  onclick="this.style.display='none'">
+  <div style="background:#1a1410; border:1px solid #3a2e20; border-radius:6px;
+    padding:28px 32px; max-width:420px; color:#e8d5b0; font-family:Courier New,monospace;
+    font-size:12px; line-height:2" onclick="event.stopPropagation()">
+    <div style="color:#c8a96e; font-size:14px; letter-spacing:.15em; margin-bottom:12px">
+      CLAY SCULPT — HOW TO USE</div>
+    <b style="color:#c8a96e">MOUSE</b><br>
+    · Left drag → sculpt<br>
+    · Right drag → rotate<br>
+    · Scroll → zoom<br><br>
+    <b style="color:#c8a96e">HAND (camera required)</b><br>
+    · Touch surface → push<br>
+    · Move while touching → sculpt<br>
+    · Pinch (thumb+index) → grab &amp; pull<br>
+    · CALIBRATE: hold hand at desired distance, press button<br><br>
+    <b style="color:#c8a96e">TOOLS</b><br>
+    · PUSH / PULL / SMOOTH / RESET<br>
+    · CLAY / SLIME / RUBBER presets<br><br>
+    <div style="text-align:center; margin-top:12px">
+      <button class="mode-btn" onclick="document.getElementById('help-modal').style.display='none'">
+        CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="canvas-container">
+    <canvas id="three-canvas"></canvas>
+  </div>
+
+  <div id="video-container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="hand-canvas"></canvas>
+  </div>
+
+  <div id="params">
+    <h3>Parameters</h3>
+    <div class="param-row">
+      <label>Radius</label>
+      <input type="range" id="p-radius" min="0.1" max="1.5" step="0.05" value="0.6"
+        oninput="brushRadius=+this.value; document.getElementById('v-radius').textContent=this.value">
+      <span id="v-radius">0.60</span>
+    </div>
+    <div class="param-row">
+      <label>Strength</label>
+      <input type="range" id="p-strength" min="0.01" max="0.15" step="0.005" value="0.04"
+        oninput="brushStrength=+this.value; document.getElementById('v-strength').textContent=this.value">
+      <span id="v-strength">0.040</span>
+    </div>
+    <div class="param-row">
+      <label>Falloff</label>
+      <input type="range" id="p-falloff" min="1" max="5" step="0.5" value="2.5"
+        oninput="brushFalloff=+this.value; document.getElementById('v-falloff').textContent=this.value">
+      <span id="v-falloff">2.5</span>
+    </div>
+    <div class="param-row">
+      <label>Volume</label>
+      <input type="range" id="p-volume" min="0" max="0.8" step="0.05" value="0.3"
+        oninput="volumePreserve=+this.value; document.getElementById('v-volume').textContent=this.value">
+      <span id="v-volume">0.30</span>
+    </div>
+
+    <h3 style="margin-top:14px">Material</h3>
+    <div class="param-row">
+      <label>Spring</label>
+      <input type="range" id="p-spring" min="1" max="20" step="0.5" value="8"
+        oninput="PHYS.springK=+this.value; document.getElementById('v-spring').textContent=this.value">
+      <span id="v-spring">8.0</span>
+    </div>
+    <div class="param-row">
+      <label>Elastic</label>
+      <input type="range" id="p-rest" min="0" max="15" step="0.5" value="4"
+        oninput="PHYS.restK=+this.value; document.getElementById('v-rest').textContent=this.value">
+      <span id="v-rest">4.0</span>
+    </div>
+    <div class="param-row">
+      <label>Damping</label>
+      <input type="range" id="p-damp" min="0.6" max="0.99" step="0.01" value="0.82"
+        oninput="PHYS.damping=+this.value; document.getElementById('v-damp').textContent=this.value">
+      <span id="v-damp">0.82</span>
+    </div>
+    <div class="param-row">
+      <label>Plastic</label>
+      <input type="range" id="p-plastic" min="0" max="0.3" step="0.01" value="0.06"
+        oninput="PHYS.plasticity=+this.value; document.getElementById('v-plastic').textContent=this.value">
+      <span id="v-plastic">0.06</span>
+    </div>
+    <div class="param-row" style="gap:4px; margin-top:8px">
+      <button class="mode-btn" style="flex:1" onclick="applyPreset('clay')">CLAY</button>
+      <button class="mode-btn" style="flex:1" onclick="applyPreset('slime')">SLIME</button>
+      <button class="mode-btn" style="flex:1" onclick="applyPreset('rubber')">RUBBER</button>
+    </div>
+
+    <h3 style="margin-top:14px">Depth</h3>
+    <div class="param-row">
+      <label>Offset</label>
+      <input type="range" id="p-dbase" min="-2" max="2" step="0.1" value="0.3"
+        oninput="DEPTH_CFG.baseOffset=+this.value; document.getElementById('v-dbase').textContent=this.value">
+      <span id="v-dbase">0.3</span>
+    </div>
+    <div class="param-row">
+      <label>Gain</label>
+      <input type="range" id="p-dgain" min="0.5" max="8" step="0.1" value="3.2"
+        oninput="DEPTH_CFG.gain=+this.value; document.getElementById('v-dgain').textContent=this.value">
+      <span id="v-dgain">3.2</span>
+    </div>
+    <div class="param-row">
+      <label>FingerZ</label>
+      <input type="range" id="p-drelz" min="0" max="8" step="0.5" value="3.0"
+        oninput="DEPTH_CFG.relZGain=+this.value; document.getElementById('v-drelz').textContent=this.value">
+      <span id="v-drelz">3.0</span>
+    </div>
+    <button class="mode-btn" id="btn-calib" style="width:100%; margin-top:8px"
+      onclick="startCalibration()">CALIBRATE</button>
+    <div id="calib-status" style="font-size:10px; color:#7a6a50; margin-top:6px; text-align:center"></div>
+  </div>
+
+  <div id="mode-badge" id="mode-badge">MOUSE MODE</div>
+
+  <div id="hints">
+    [MOUSE] drag to sculpt · scroll to zoom · right-drag to rotate<br>
+    [HAND] fingertips push on contact · pinch (thumb+index) = grab & pull · both hands OK
+  </div>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- MediaPipe Hands -->
+<!-- バージョン固定：意図しないBreaking Changeを防ぐ -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ===== Three.js セットアップ =====
+const canvas3d = document.getElementById('three-canvas');
+const container = document.getElementById('canvas-container');
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1410);
+scene.fog = new THREE.Fog(0x1a1410, 10, 30);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 7);
+
+// ライティング（粘土らしい質感）
+const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.4);
+scene.add(ambientLight);
+
+const keyLight = new THREE.DirectionalLight(0xfff0d0, 1.2);
+keyLight.position.set(3, 5, 4);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xd0e8ff, 0.3);
+fillLight.position.set(-3, 2, -2);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xffe8c0, 0.5);
+rimLight.position.set(0, -3, -4);
+scene.add(rimLight);
+
+// ===== Icosphere 生成 =====
+// SphereGeometry は極付近に頂点が密集して破綻する
+// Icosphereは全頂点が均等分布するので縁でも安定
+function buildIcosphere(radius, subdivisions) {
+  const t = (1 + Math.sqrt(5)) / 2;
+  const baseVerts = [
+    [-1, t, 0],[1, t, 0],[-1,-t, 0],[1,-t, 0],
+    [0,-1, t],[0, 1, t],[0,-1,-t],[0, 1,-t],
+    [t, 0,-1],[t, 0, 1],[-t, 0,-1],[-t, 0, 1],
+  ].map(v => { const l = Math.hypot(...v); return v.map(x => x/l); });
+
+  const baseFaces = [
+    [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+    [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+    [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+    [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1],
+  ];
+
+  let verts = baseVerts.map(v => [...v]);
+  let faces = baseFaces.map(f => [...f]);
+  const midCache = new Map();
+
+  function midpoint(a, b) {
+    const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+    if (midCache.has(key)) return midCache.get(key);
+    const va = verts[a], vb = verts[b];
+    const mx = (va[0]+vb[0])/2, my = (va[1]+vb[1])/2, mz = (va[2]+vb[2])/2;
+    const l = Math.hypot(mx, my, mz);
+    const idx = verts.length;
+    verts.push([mx/l, my/l, mz/l]);
+    midCache.set(key, idx);
+    return idx;
+  }
+
+  for (let s = 0; s < subdivisions; s++) {
+    const next = [];
+    for (const [a,b,c] of faces) {
+      const ab = midpoint(a,b), bc = midpoint(b,c), ca = midpoint(c,a);
+      next.push([a,ab,ca],[b,bc,ab],[c,ca,bc],[ab,bc,ca]);
+    }
+    faces = next;
+  }
+
+  const positions = [];
+  const indices = [];
+  for (const v of verts) positions.push(v[0]*radius, v[1]*radius, v[2]*radius);
+  for (const [a,b,c] of faces) indices.push(a, b, c);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+
+  // smoothing用の隣接テーブルを事前構築（均等隣接なので精度が高い）
+  const adjSets = Array.from({length: verts.length}, () => new Set());
+  for (const [a,b,c] of faces) {
+    adjSets[a].add(b); adjSets[a].add(c);
+    adjSets[b].add(a); adjSets[b].add(c);
+    adjSets[c].add(a); adjSets[c].add(b);
+  }
+  geo.userData.adjacency = adjSets.map(s => [...s]);
+
+  return geo;
+}
+
+// ===== メッシュ生成 =====
+let geometry, mesh;
+
+// ── 粘弾性物理のバッファ ──
+// vel:  各頂点の速度（ぐにょーんの源）
+// rest: 各頂点の基準位置（塑性的にゆっくり更新 = 形が残る）
+let velArr = null;
+let restArr = null;
+
+function createMesh() {
+  if (mesh) {
+    scene.remove(mesh);
+    geometry.dispose();
+  }
+
+  // subdivisions=5 → 約10,240頂点、全球面で均等分布
+  geometry = buildIcosphere(2, 5);
+
+  const posArr = geometry.attributes.position.array;
+  geometry.userData.originalPositions = new Float32Array(posArr);
+
+  // 物理バッファ初期化
+  velArr  = new Float32Array(posArr.length); // 全部0
+  restArr = new Float32Array(posArr);        // 初期位置 = rest
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xc8a070,
+    roughness: 0.85,
+    metalness: 0.02,
+  });
+
+  mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+}
+
+createMesh();
+
+// ===== スカルプト パラメータ =====
+let brushRadius   = 0.6;
+let brushStrength = 0.04;
+let brushFalloff  = 2.5;
+let volumePreserve = 0.3;
+let currentTool   = 'push';
+
+function setTool(t) {
+  currentTool = t;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + t)?.classList.add('active');
+}
+
+function resetMesh() { createMesh(); }
+
+// ===== スカルプト コア =====
+function falloff(dist, radius) {
+  if (dist >= radius) return 0;
+  const t = 1 - dist / radius;
+  return Math.pow(t, brushFalloff);
+}
+
+// ── 力の注入：位置でなく速度に力を加える ──
+// 「ぐにょーん」の入口。直接変形ではなく物理ステップが速度を位置に変換する。
+function sculptAt(worldPos, forceDir, strength) {
+  if (!velArr) return;
+  const pos  = geometry.attributes.position;
+  const arr  = pos.array;
+  const count = pos.count;
+  const fx = forceDir.x, fy = forceDir.y, fz = forceDir.z;
+
+  for (let i = 0; i < count; i++) {
+    const dx = arr[i*3]-worldPos.x, dy = arr[i*3+1]-worldPos.y, dz = arr[i*3+2]-worldPos.z;
+    const dist = Math.hypot(dx, dy, dz);
+    const inf = falloff(dist, brushRadius);
+    if (inf < 0.001) continue;
+
+    if (currentTool === 'push') {
+      const impulse = inf * strength * 2.5;
+      velArr[i*3]   += fx * impulse;
+      velArr[i*3+1] += fy * impulse;
+      velArr[i*3+2] += fz * impulse;
+    } else if (currentTool === 'pull') {
+      const narr = geometry.attributes.normal.array;
+      const impulse = inf * strength * 2.5;
+      velArr[i*3]   += narr[i*3]   * impulse;
+      velArr[i*3+1] += narr[i*3+1] * impulse;
+      velArr[i*3+2] += narr[i*3+2] * impulse;
+    } else if (currentTool === 'smooth') {
+      // restを現在位置に固定化（変形を「焼き付ける」）
+      restArr[i*3]   += (arr[i*3]   - restArr[i*3])   * inf * 0.3;
+      restArr[i*3+1] += (arr[i*3+1] - restArr[i*3+1]) * inf * 0.3;
+      restArr[i*3+2] += (arr[i*3+2] - restArr[i*3+2]) * inf * 0.3;
+    }
+  }
+}
+
+// ── 粘弾性 物理ステップ（毎フレーム実行） ──
+// 紙粘土の質感パラメータ
+const PHYS = {
+  springK:    8.0,   // 隣接バネ：強いほど周辺がついてくる
+  restK:      4.0,   // rest復元力：強いほど弾性的に戻る
+  damping:    0.82,  // 減衰：小さいほどビヨンビヨン揺れる
+  plasticity: 0.06,  // 塑性：大きいほど形がすぐ残る
+  plasticThreshold: 0.015,
+  maxVel:     0.25,
+  dt:         1/60,
+};
+
+// ── 質感プリセット ──
+const PRESETS = {
+  clay:   { springK: 6,  restK: 1.5, damping: 0.78, plasticity: 0.15 }, // 形が残る・戻らない
+  slime:  { springK: 3,  restK: 5,   damping: 0.92, plasticity: 0.02 }, // ゆるくびよびよ
+  rubber: { springK: 15, restK: 12,  damping: 0.85, plasticity: 0.0  }, // 完全に戻る
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  Object.assign(PHYS, p);
+  // スライダーUIも同期
+  const sync = (id, vid, val) => {
+    const el = document.getElementById(id);
+    const vl = document.getElementById(vid);
+    if (el) el.value = val;
+    if (vl) vl.textContent = val;
+  };
+  sync('p-spring',  'v-spring',  p.springK);
+  sync('p-rest',    'v-rest',    p.restK);
+  sync('p-damp',    'v-damp',    p.damping);
+  sync('p-plastic', 'v-plastic', p.plasticity);
+}
+
+function physicsStep() {
+  if (!velArr || !restArr) return;
+
+  const pos = geometry.attributes.position;
+  const arr = pos.array;
+  const count = pos.count;
+  const adj = geometry.userData.adjacency;
+  if (!adj) return;
+
+  const { springK, restK, damping, plasticity, plasticThreshold, maxVel, dt } = PHYS;
+  const snap = new Float32Array(arr);
+  let anyMotion = false;
+
+  for (let i = 0; i < count; i++) {
+    const px = snap[i*3], py = snap[i*3+1], pz = snap[i*3+2];
+
+    // 隣接バネ：隣の平均位置に引かれる
+    const neighbors = adj[i];
+    let ax = 0, ay = 0, az = 0;
+    for (const j of neighbors) {
+      ax += snap[j*3]; ay += snap[j*3+1]; az += snap[j*3+2];
+    }
+    const nlen = neighbors.length;
+    ax /= nlen; ay /= nlen; az /= nlen;
+
+    // rest復元 + バネ + 減衰
+    let vx = (velArr[i*3]   + ((ax-px)*springK + (restArr[i*3]  -px)*restK) * dt) * damping;
+    let vy = (velArr[i*3+1] + ((ay-py)*springK + (restArr[i*3+1]-py)*restK) * dt) * damping;
+    let vz = (velArr[i*3+2] + ((az-pz)*springK + (restArr[i*3+2]-pz)*restK) * dt) * damping;
+
+    const vlen = Math.hypot(vx, vy, vz);
+    if (vlen > maxVel) { const s = maxVel/vlen; vx*=s; vy*=s; vz*=s; }
+
+    velArr[i*3]=vx; velArr[i*3+1]=vy; velArr[i*3+2]=vz;
+    arr[i*3]   = px + vx;
+    arr[i*3+1] = py + vy;
+    arr[i*3+2] = pz + vz;
+
+    if (vlen > 0.0005) anyMotion = true;
+
+    // 塑性：変位が閾値を超えたらrestが追従（形が残る）
+    const dRx = arr[i*3]-restArr[i*3], dRy = arr[i*3+1]-restArr[i*3+1], dRz = arr[i*3+2]-restArr[i*3+2];
+    const dRlen = Math.hypot(dRx, dRy, dRz);
+    if (dRlen > plasticThreshold) {
+      restArr[i*3]   += dRx * plasticity;
+      restArr[i*3+1] += dRy * plasticity;
+      restArr[i*3+2] += dRz * plasticity;
+    }
+  }
+
+  if (anyMotion) {
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+}
+
+
+// Laplacian smoothing（adjacencyベース、均等隣接で歪みなし）
+function smoothPass(influences, strength) {
+  const pos = geometry.attributes.position;
+  const arr = pos.array;
+  const count = pos.count;
+  const adj = geometry.userData.adjacency;
+  const snapshot = new Float32Array(arr); // smoothingはスナップショットから計算
+
+  for (let i = 0; i < count; i++) {
+    if (influences[i] < 0.001) continue;
+    const neighbors = adj ? adj[i] : [];
+    if (!neighbors.length) continue;
+
+    let ax = 0, ay = 0, az = 0;
+    for (const j of neighbors) {
+      ax += snapshot[j*3]; ay += snapshot[j*3+1]; az += snapshot[j*3+2];
+    }
+    ax /= neighbors.length; ay /= neighbors.length; az /= neighbors.length;
+
+    const s = influences[i] * strength;
+    arr[i*3]   += (ax - arr[i*3])   * s;
+    arr[i*3+1] += (ay - arr[i*3+1]) * s;
+    arr[i*3+2] += (az - arr[i*3+2]) * s;
+  }
+}
+
+// ===== マウス操作 =====
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let isMouseDown = false;
+let isRightDown = false;
+let lastMouse = { x: 0, y: 0 };
+let orbitTheta = 0, orbitPhi = Math.PI / 2;
+let orbitRadius = 7;
+
+// ブラシカーソル表示用
+const cursorGeo = new THREE.SphereGeometry(1, 16, 16);
+const cursorMat = new THREE.MeshBasicMaterial({
+  color: 0xffcc66,
+  transparent: true,
+  opacity: 0.15,
+  wireframe: true
+});
+const cursorMesh = new THREE.Mesh(cursorGeo, cursorMat);
+scene.add(cursorMesh);
+
+function getWorldPos(clientX, clientY) {
+  const rect = canvas3d.getBoundingClientRect();
+  mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(mesh);
+  return hits.length > 0 ? hits[0].point : null;
+}
+
+canvas3d.addEventListener('mousedown', e => {
+  if (e.button === 0) isMouseDown = true;
+  if (e.button === 2) isRightDown = true;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  e.preventDefault();
+});
+
+canvas3d.addEventListener('mousemove', e => {
+  const wp = getWorldPos(e.clientX, e.clientY);
+  if (wp) {
+    cursorMesh.position.copy(wp);
+    cursorMesh.scale.setScalar(brushRadius);
+    cursorMesh.visible = true;
+  } else {
+    cursorMesh.visible = false;
+  }
+
+  if (isRightDown) {
+    // 軌道回転
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    orbitTheta -= dx * 0.005;
+    orbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, orbitPhi + dy * 0.005));
+    updateCamera();
+  } else if (isMouseDown && wp) {
+    // マウス：カメラ→ヒット点のレイ方向が「力の向き」
+    sculptAt(wp, raycaster.ray.direction, brushStrength);
+  }
+
+  lastMouse = { x: e.clientX, y: e.clientY };
+});
+
+canvas3d.addEventListener('mouseup', e => {
+  if (e.button === 0) isMouseDown = false;
+  if (e.button === 2) isRightDown = false;
+});
+canvas3d.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas3d.addEventListener('wheel', e => {
+  orbitRadius = Math.max(3, Math.min(15, orbitRadius + e.deltaY * 0.01));
+  updateCamera();
+  e.preventDefault();
+}, { passive: false });
+
+function updateCamera() {
+  camera.position.x = orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta);
+  camera.position.y = orbitRadius * Math.cos(orbitPhi);
+  camera.position.z = orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta);
+  camera.lookAt(0, 0, 0);
+}
+
+// タッチ対応
+canvas3d.addEventListener('touchstart', e => {
+  isMouseDown = true;
+  const t = e.touches[0];
+  lastMouse = { x: t.clientX, y: t.clientY };
+  e.preventDefault();
+}, { passive: false });
+canvas3d.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  const wp = getWorldPos(t.clientX, t.clientY);
+  if (isMouseDown && wp) sculptAt(wp, raycaster.ray.direction, brushStrength);
+  lastMouse = { x: t.clientX, y: t.clientY };
+  e.preventDefault();
+}, { passive: false });
+canvas3d.addEventListener('touchend', () => { isMouseDown = false; });
+
+// ===== MediaPipe Hands =====
+const videoEl = document.getElementById('video');
+const handCanvas = document.getElementById('hand-canvas');
+const handCtx = handCanvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const modeBadge = document.getElementById('mode-badge');
+
+let handActive = false;
+
+// ── ランドマーク役割定義 ──
+const FINGER_TIPS  = [4, 8, 12, 16, 20];
+const FINGER_MIDS  = [3, 7, 11, 15, 19];
+const PALM_POINTS  = [0, 1, 5, 9, 13, 17];
+const TIP_RADIUS   = 0.25;
+const MID_RADIUS   = 0.20;
+const PALM_RADIUS  = 0.35;
+
+// ── 3D手の可視化：関節球 + 骨ライン ──
+// 手ごとに独立したグループを持つ（両手対応）
+const HAND_CONNECTIONS_3D = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17]
+];
+
+// 両手分のメッシュグループを用意
+const handGroups = [0, 1].map(hi => {
+  const group = new THREE.Group();
+  scene.add(group);
+
+  // 21個の関節球
+  const joints = Array.from({ length: 21 }, (_, i) => {
+    const r = FINGER_TIPS.includes(i) ? 0.055
+            : PALM_POINTS.includes(i) ? 0.05 : 0.04;
+    const geo = new THREE.SphereGeometry(r, 8, 8);
+    const mat = new THREE.MeshStandardMaterial({
+      color: hi === 0 ? 0xe8c090 : 0x90c8e8,
+      roughness: 0.5, metalness: 0.1,
+      transparent: true, opacity: 0.85
+    });
+    const m = new THREE.Mesh(geo, mat);
+    group.add(m);
+    return m;
+  });
+
+  // 骨ライン
+  const boneMat = new THREE.LineBasicMaterial({
+    color: hi === 0 ? 0xc8a070 : 0x70a0c8,
+    transparent: true, opacity: 0.5
+  });
+  const bones = HAND_CONNECTIONS_3D.map(([a, b]) => {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(), new THREE.Vector3()
+    ]);
+    const line = new THREE.Line(geo, boneMat);
+    group.add(line);
+    return { line, a, b };
+  });
+
+  group.visible = false;
+  return { group, joints, bones };
+});
+
+// ── ランドマーク → メッシュ表面の交差点（シンプル版）──
+// Z深度は使わない。スクリーン上で重なったら変形。
+// レイキャストでメッシュ表面の正確な交差点を得る。
+function lmToSurface(lm, idx) {
+  const nx = 1 - lm[idx].x;
+  const ny = lm[idx].y;
+  const ndcX = nx * 2 - 1;
+  const ndcY = -(ny * 2 - 1);
+  raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+  const hits = raycaster.intersectObject(mesh);
+  if (hits.length === 0) return null;
+  return {
+    point: hits[0].point.clone(),
+    ray:   raycaster.ray.direction.clone(),
+    // 3D表示用：表面点をカメラ方向に少し手前に出す
+    displayPt: hits[0].point.clone()
+      .addScaledVector(raycaster.ray.direction, -0.15)
+  };
+}
+
+// ════════════════════════════════════════════
+//  真の3Dハンドトラッキング
+//  奥行き = 手の見かけサイズ（全体） + lm.z（関節相対）
+// ════════════════════════════════════════════
+
+// ── グラブ（つまみ）状態管理 ──
+const grabState = [null, null];
+
+function isPinching(lm) {
+  const d = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+  return d < 0.055;
+}
+
+// ── 手ごとの平滑化された奥行きスケール（EMA）──
+const smoothHandScale = [1.0, 1.0];
+
+// 奥行きマッピング設定
+// baseは動的：カメラから球の手前表面までの距離を毎フレーム計算
+// → ズームしてもキャリブレーション位置が常に「表面ちょい奥」になる
+const SPHERE_R = 2.0;
+const DEPTH_CFG = {
+  baseOffset: 0.3,  // 表面からのオフセット（正=食い込む方向）
+  gain:       3.2,  // handScaleが1増えるごとに進む距離
+  relZGain:   3.0,  // 関節相対深度(lm.z)の増幅率
+  scaleEMA:   0.7,  // 奥行きの平滑化
+};
+
+// ── キャリブレーション ──
+// 「粘土に触れたい距離」に手を置いてCALIBRATEを押すと、
+// そのときの手のサイズが標準（handScale=1.0）になる
+let handSizeRef = 0.18; // キャリブレーションで上書きされる
+let calibrating = false;
+let calibSamples = [];
+let calibEndTime = 0;
+
+function startCalibration() {
+  calibrating = true;
+  calibSamples = [];
+  calibEndTime = performance.now() + 2000; // 2秒間サンプリング
+  const el = document.getElementById('calib-status');
+  if (el) el.textContent = 'Hold your hand still...';
+}
+
+// 毎フレーム呼ばれる：キャリブレーション中ならサンプル収集
+function feedCalibration(lm) {
+  if (!calibrating) return;
+  const sz = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
+  calibSamples.push(sz);
+
+  const remaining = calibEndTime - performance.now();
+  const el = document.getElementById('calib-status');
+
+  if (remaining <= 0) {
+    calibrating = false;
+    if (calibSamples.length > 5) {
+      // 外れ値に強い中央値を使う
+      calibSamples.sort((a, b) => a - b);
+      handSizeRef = calibSamples[Math.floor(calibSamples.length / 2)];
+      if (el) el.textContent = `Calibrated (ref=${handSizeRef.toFixed(3)})`;
+    } else {
+      if (el) el.textContent = 'Failed: hand not detected';
+    }
+  } else {
+    if (el) el.textContent = `Sampling... ${(remaining/1000).toFixed(1)}s`;
+  }
+}
+
+// 手の見かけサイズ → handScale（生値）
+function rawHandScale(lm) {
+  const sz = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
+  return Math.max(0.4, Math.min(2.5, sz / handSizeRef));
+}
+
+// ランドマークの真の3Dワールド座標
+// 手をカメラに近づける(scale大) → シーンの奥(球方向)に進む
+function lmToWorld3D(lm, idx, handScale) {
+  const nx = 1 - lm[idx].x;
+  const ny = lm[idx].y;
+  raycaster.setFromCamera(new THREE.Vector2(nx*2-1, -(ny*2-1)), camera);
+
+  // ★ ベース距離を動的に：カメラ→球の手前表面 + オフセット
+  // キャリブレーション位置（handScale=1.0）= 表面ちょい食い込み
+  const camDist = camera.position.length(); // カメラ→原点
+  const surfaceDist = camDist - SPHERE_R;   // カメラ→球の手前表面
+
+  // lm.z は手首基準・カメラに近いほど負 → カメラに近い指 = 奥に突っ込む
+  const relZ = lm[idx].z - lm[0].z;
+  const dist = surfaceDist + DEPTH_CFG.baseOffset
+             + (handScale - 1.0) * DEPTH_CFG.gain
+             - relZ * DEPTH_CFG.relZGain;
+
+  return raycaster.ray.origin.clone()
+    .addScaledVector(raycaster.ray.direction, dist);
+}
+
+// 3D点がメッシュの内側にいるか + 表面情報
+// ★ レイは「外側の遠い点」から「内向き」に飛ばす
+//   （内側から外向きだと裏面扱いで絶対にヒットしないため）
+const _insideRay = new THREE.Raycaster();
+const RAY_START_DIST = 12; // メッシュより十分外側
+function checkInsideMesh(worldPt) {
+  const distFromCenter = worldPt.length(); // メッシュは原点中心
+  if (distFromCenter < 0.001) {
+    return { inside: true, penetration: 2.0,
+             surfacePoint: new THREE.Vector3(0,2,0),
+             surfaceNormal: new THREE.Vector3(0,1,0) };
+  }
+  const dir = worldPt.clone().normalize(); // 原点→関節方向
+
+  // 外側の点から原点に向かってレイを飛ばす（フロントフェースに当たる）
+  const farPt = dir.clone().multiplyScalar(RAY_START_DIST);
+  _insideRay.set(farPt, dir.clone().negate());
+  _insideRay.far = RAY_START_DIST + 1;
+  const hits = _insideRay.intersectObject(mesh);
+  if (hits.length === 0) return { inside: false, penetration: 0 };
+
+  // 原点から表面までの距離 = レイ始点距離 - ヒットまでの距離
+  const surfDist = RAY_START_DIST - hits[0].distance;
+  const inside = distFromCenter < surfDist;
+  return {
+    inside,
+    penetration: inside ? (surfDist - distFromCenter) : 0,
+    surfacePoint: hits[0].point,
+    surfaceNormal: hits[0].face
+      ? hits[0].face.normal.clone().transformDirection(mesh.matrixWorld)
+      : dir.clone(),
+  };
+}
+
+function updateHandMesh(lm, handIdx) {
+  if (handIdx >= handGroups.length) return;
+  const { group, joints, bones } = handGroups[handIdx];
+  group.visible = true;
+
+  // ── 奥行きスケールの平滑化 ──
+  const raw = rawHandScale(lm);
+  smoothHandScale[handIdx] = smoothHandScale[handIdx] * DEPTH_CFG.scaleEMA
+                           + raw * (1 - DEPTH_CFG.scaleEMA);
+  const handScale = smoothHandScale[handIdx];
+
+  // ── 全関節の真3D位置を計算 ──
+  const positions3D = Array.from({ length: 21 }, (_, i) => lmToWorld3D(lm, i, handScale));
+
+  // ════ グラブ（つまみ）════
+  const pinching = isPinching(lm);
+  const pinchMid3D = positions3D[4].clone().add(positions3D[8]).multiplyScalar(0.5);
+
+  if (pinching && !grabState[handIdx]) {
+    // ピンチ開始：ピンチ中点に最も近いメッシュ表面の頂点を掴む
+    // ピンチ中点→原点方向のレイで表面を取得
+    const check = checkInsideMesh(pinchMid3D);
+    if (check.surfacePoint && pinchMid3D.distanceTo(check.surfacePoint) < 0.8) {
+      // 表面点に最も近い頂点インデックスを取得
+      const arr = geometry.attributes.position.array;
+      const count = geometry.attributes.position.count;
+      let minD = Infinity, minI = 0;
+      const sp = check.surfacePoint;
+      // レイヒット面の頂点だけ調べたいが、faceがないこともあるので近傍走査を1回だけ
+      for (let i = 0; i < count; i++) {
+        const dx = arr[i*3]-sp.x, dy = arr[i*3+1]-sp.y, dz = arr[i*3+2]-sp.z;
+        const d = dx*dx+dy*dy+dz*dz;
+        if (d < minD) { minD = d; minI = i; }
+      }
+      grabState[handIdx] = { vertexIdx: minI };
+    }
+  } else if (!pinching && grabState[handIdx]) {
+    grabState[handIdx] = null;
+  }
+
+  if (grabState[handIdx]) {
+    // グラブ中：掴んだ頂点をピンチ中点の3D位置へ引っ張る
+    // → つまんで手を引く（カメラに近づける/遠ざける）と材料が3Dでついてくる
+    const { vertexIdx } = grabState[handIdx];
+    const arr = geometry.attributes.position.array;
+    const gx = arr[vertexIdx*3], gy = arr[vertexIdx*3+1], gz = arr[vertexIdx*3+2];
+
+    const fx = pinchMid3D.x - gx, fy = pinchMid3D.y - gy, fz = pinchMid3D.z - gz;
+    const fLen = Math.hypot(fx, fy, fz);
+
+    if (fLen > 0.01) {
+      const GRAB_RADIUS = 0.5;
+      const GRAB_POWER  = 0.4;
+      const dirX = fx/fLen, dirY = fy/fLen, dirZ = fz/fLen;
+      const pull = Math.min(fLen * GRAB_POWER, 0.14);
+
+      const count = geometry.attributes.position.count;
+      for (let i = 0; i < count; i++) {
+        const dx = arr[i*3]-gx, dy = arr[i*3+1]-gy, dz = arr[i*3+2]-gz;
+        const inf = falloff(Math.hypot(dx,dy,dz), GRAB_RADIUS);
+        if (inf < 0.001) continue;
+        velArr[i*3]   += dirX * pull * inf;
+        velArr[i*3+1] += dirY * pull * inf;
+        velArr[i*3+2] += dirZ * pull * inf;
+      }
+    }
+  }
+
+  // ════ 押し変形：めり込みベース ════
+  // 関節の3D位置がメッシュ内部に入ったら、めり込み量に比例した力を注入
+  // → 指を粘土に沈めると押し返されて平衡する（本物の接触感）
+  const SCULPT_POINTS = [0, 4, 8, 12, 16, 20];
+  const touching = {}; // 表示用：触れている関節
+
+  if (!grabState[handIdx]) {
+    for (const i of SCULPT_POINTS) {
+      const jPos = positions3D[i];
+      const check = checkInsideMesh(jPos);
+      if (!check.inside) {
+        lastLmWorld[`${handIdx}_${i}`] = jPos.clone();
+        continue;
+      }
+      touching[i] = true;
+
+      // 力の向き：関節の移動方向（なければ表面法線の逆 = めり込み方向）
+      const key = `${handIdx}_${i}`;
+      const prev = lastLmWorld[key];
+      let forceDir;
+      if (prev) {
+        const dx = jPos.x-prev.x, dy = jPos.y-prev.y, dz = jPos.z-prev.z;
+        const len = Math.hypot(dx,dy,dz);
+        forceDir = len > 0.002
+          ? new THREE.Vector3(dx/len, dy/len, dz/len)
+          : check.surfaceNormal.clone().negate();
+      } else {
+        forceDir = check.surfaceNormal.clone().negate();
+      }
+      lastLmWorld[key] = jPos.clone();
+
+      // めり込み量に比例した力（上限つき）
+      const isTip = FINGER_TIPS.includes(i);
+      const jR = (isTip ? TIP_RADIUS : PALM_RADIUS) * Math.min(handScale, 1.6);
+      const penForce = Math.min(check.penetration * 0.5, 0.1);
+      const jStr = penForce * (isTip ? 1.2 : 0.6);
+
+      const savedRadius = brushRadius;
+      brushRadius = jR;
+      // 力の注入点はめり込んだ関節位置そのもの
+      sculptAt(jPos, forceDir, jStr);
+      brushRadius = savedRadius;
+    }
+  }
+
+  // ════ 3D表示 ════
+  joints.forEach((m, i) => {
+    m.position.copy(positions3D[i]);
+    m.material.opacity = touching[i] ? 1.0
+      : (grabState[handIdx] && (i === 4 || i === 8)) ? 1.0
+      : 0.55;
+    m.scale.setScalar(Math.min(handScale, 1.8));
+  });
+  bones.forEach(({ line, a, b }) => {
+    const pts = line.geometry.attributes.position;
+    pts.setXYZ(0, positions3D[a].x, positions3D[a].y, positions3D[a].z);
+    pts.setXYZ(1, positions3D[b].x, positions3D[b].y, positions3D[b].z);
+    pts.needsUpdate = true;
+  });
+}
+
+
+// ── 手の姿勢を判定する ──
+function detectHandPose(lm) {
+  let foldCount = 0;
+  for (const tip of [8, 12, 16, 20]) {
+    if (lm[tip].y > lm[tip-1].y + 0.02) foldCount++;
+  }
+  return foldCount >= 3 ? 'grip' : 'open';
+}
+
+// 前フレームの関節ワールド座標（衝突・速度計算共用）
+const lastLmWorld = {};
+
+let handsReady = false;
+let mpHands = null;
+
+function initMediaPipe() {
+  try {
+    mpHands = new Hands({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
+    });
+
+    mpHands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.5,
+    });
+
+    mpHands.onResults(results => {
+      handCanvas.width = videoEl.videoWidth || 200;
+      handCanvas.height = videoEl.videoHeight || 150;
+      handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+      const detectedCount = results.multiHandLandmarks
+        ? results.multiHandLandmarks.length : 0;
+
+      // 検出されなかった手のメッシュを非表示
+      handGroups.forEach((hg, hi) => {
+        if (hi >= detectedCount) hg.group.visible = false;
+      });
+
+      if (detectedCount === 0) {
+        handActive = false;
+        cursorMesh.visible = false;
+        return;
+      }
+
+      handActive = true;
+      cursorMesh.visible = false;
+
+      // キャリブレーション中は最初の手でサンプリング
+      feedCalibration(results.multiHandLandmarks[0]);
+
+      results.multiHandLandmarks.forEach((lm, hi) => {
+        // ミニカメラにも描画
+        drawConnectors(handCtx, lm, HAND_CONNECTIONS,
+          { color: hi === 0 ? '#c8a96e60' : '#6e90c860', lineWidth: 1 });
+        drawLandmarks(handCtx, lm,
+          { color: hi === 0 ? '#c8a96e' : '#6e90c8', lineWidth: 1, radius: 2 });
+
+        // 3Dメッシュ更新 + 衝突判定 + 変形（全てupdateHandMesh内で処理）
+        updateHandMesh(lm, hi);
+      });
+    });
+
+    const cam = new Camera(videoEl, {
+      onFrame: async () => { await mpHands.send({ image: videoEl }); },
+      width: 320, height: 240
+    });
+    cam.start();
+
+    statusEl.textContent = 'CAMERA: ACTIVE';
+    statusEl.className = 'active';
+    modeBadge.textContent = 'HAND MODE';
+
+  } catch (e) {
+    statusEl.textContent = 'CAMERA: UNAVAILABLE (MOUSE MODE)';
+    modeBadge.textContent = 'MOUSE MODE';
+    console.warn('MediaPipe init failed:', e);
+  }
+}
+
+// カメラ許可リクエスト
+async function startCamera() {
+  // カメラを使わない場合もマウスで全機能使えることを明示
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    statusEl.textContent = 'CAMERA: NOT SUPPORTED (MOUSE MODE)';
+    modeBadge.textContent = 'MOUSE MODE';
+    return;
+  }
+  try {
+    await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }
+    });
+    initMediaPipe();
+  } catch (e) {
+    // NotAllowedError: ユーザーが拒否
+    // NotFoundError: カメラがない
+    const msg = e.name === 'NotFoundError'
+      ? 'CAMERA: NOT FOUND (MOUSE MODE)'
+      : 'CAMERA: DENIED (MOUSE MODE)';
+    statusEl.textContent = msg;
+    modeBadge.textContent = 'MOUSE MODE';
+  }
+}
+
+startCamera();
+
+// ===== リサイズ =====
+function resize() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ===== レンダーループ =====
+function animate() {
+  requestAnimationFrame(animate);
+  physicsStep(); // 粘弾性シミュレーション
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
