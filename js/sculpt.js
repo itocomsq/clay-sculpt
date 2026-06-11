@@ -9,13 +9,13 @@ export const brush = {
   radius: 0.6,
   strength: 0.04,
   falloff: 2.5,
-  volumePreserve: 0.3, // wired to the UI but not yet read by the sim (see spec §7)
   tool: 'push',
 };
 
 export function setTool(t) {
   brush.tool = t;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  // Only tool buttons — the camera toggle keeps its own active state.
+  document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
   document.getElementById('btn-' + t)?.classList.add('active');
 }
 

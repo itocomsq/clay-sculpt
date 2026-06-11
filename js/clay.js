@@ -26,14 +26,12 @@ export function createMesh() {
   const geometry = buildIcosphere(2, 5);
 
   const posArr = geometry.attributes.position.array;
-  geometry.userData.originalPositions = new Float32Array(posArr);
-
   const vel = new Float32Array(posArr.length); // all zero
   const rest = new Float32Array(posArr);        // initial position = rest
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0xc8a070,
-    roughness: 0.85,
+    color: 0xe09060,
+    roughness: 0.8,
     metalness: 0.02,
   });
 

@@ -86,31 +86,3 @@ export function physicsStep() {
     geometry.computeVertexNormals();
   }
 }
-
-// Laplacian smoothing pass (adjacency-based). Currently unused — retained from
-// the original; see spec §7.
-export function smoothPass(influences, strength) {
-  const { geometry } = clay;
-  const pos = geometry.attributes.position;
-  const arr = pos.array;
-  const count = pos.count;
-  const adj = geometry.userData.adjacency;
-  const snapshot = new Float32Array(arr);
-
-  for (let i = 0; i < count; i++) {
-    if (influences[i] < 0.001) continue;
-    const neighbors = adj ? adj[i] : [];
-    if (!neighbors.length) continue;
-
-    let ax = 0, ay = 0, az = 0;
-    for (const j of neighbors) {
-      ax += snapshot[j * 3]; ay += snapshot[j * 3 + 1]; az += snapshot[j * 3 + 2];
-    }
-    ax /= neighbors.length; ay /= neighbors.length; az /= neighbors.length;
-
-    const s = influences[i] * strength;
-    arr[i * 3] += (ax - arr[i * 3]) * s;
-    arr[i * 3 + 1] += (ay - arr[i * 3 + 1]) * s;
-    arr[i * 3 + 2] += (az - arr[i * 3 + 2]) * s;
-  }
-}

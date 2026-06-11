@@ -1,9 +1,28 @@
+/* ── Playful palette ──
+   bg deep plum, warm clay accents, per-tool pop colors. */
+:root {
+  --bg: #241733;
+  --panel: rgba(30, 18, 44, 0.82);
+  --line: #4a3566;
+  --ink: #f3e8d8;
+  --ink-dim: #b9a8cc;
+  --accent: #ffb866;
+  --coral: #ff7e67;   /* 押す */
+  --teal: #4ecdc4;    /* 引く */
+  --lavender: #b39df2;/* ならす */
+  --clay: #ff9f5a;    /* ねんど */
+  --slime: #8be05a;   /* スライム */
+  --rubber: #5fb0ff;  /* ゴム */
+  --ok: #8be05a;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  background: #1a1410;
-  color: #e8d5b0;
-  font-family: 'Courier New', monospace;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Hiragino Maru Gothic ProN', 'BIZ UDGothic', 'M PLUS Rounded 1c',
+    'Yu Gothic UI', 'Segoe UI', sans-serif;
   overflow: hidden;
   height: 100vh;
   display: flex;
@@ -11,50 +30,60 @@ body {
 }
 
 #header {
-  padding: 12px 20px;
-  background: rgba(0, 0, 0, 0.4);
-  border-bottom: 1px solid #3a2e20;
+  padding: 10px 16px;
+  background: rgba(18, 10, 30, 0.6);
+  border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 10px;
   z-index: 10;
 }
 
 #header h1 {
-  font-size: 14px;
-  letter-spacing: 0.2em;
-  color: #c8a96e;
-  text-transform: uppercase;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  margin-right: 8px;
+  background: linear-gradient(90deg, var(--coral), var(--accent), var(--teal));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
 }
 
 .mode-btn {
-  padding: 4px 12px;
-  border: 1px solid #5a4a30;
+  padding: 6px 14px;
+  border: 1.5px solid var(--line);
   background: transparent;
-  color: #a08060;
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
+  color: var(--ink-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 999px;
   transition: all 0.15s;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
 }
-.mode-btn:hover, .mode-btn.active {
-  background: #3a2e20;
-  color: #e8d5b0;
-  border-color: #c8a96e;
-}
+.mode-btn:hover { color: var(--ink); border-color: var(--accent); transform: translateY(-1px); }
+.mode-btn.active { color: #241733; background: var(--accent); border-color: var(--accent); }
+
+/* Per-tool pop colors when active */
+.tool-push.active { background: var(--coral); border-color: var(--coral); }
+.tool-pull.active { background: var(--teal); border-color: var(--teal); }
+.tool-smooth.active { background: var(--lavender); border-color: var(--lavender); }
+.preset-clay:hover { border-color: var(--clay); color: var(--clay); }
+.preset-slime:hover { border-color: var(--slime); color: var(--slime); }
+.preset-rubber:hover { border-color: var(--rubber); color: var(--rubber); }
+
 .mode-btn--flex { flex: 1; }
-.mode-btn--block { width: 100%; }
-.mode-btn--help { margin-left: 8px; }
+.mode-btn--help { margin-left: 4px; }
 
 #status {
   margin-left: auto;
   font-size: 11px;
-  color: #7a6a50;
+  color: var(--ink-dim);
   letter-spacing: 0.05em;
 }
-#status.active { color: #90c878; }
+#status.active { color: var(--ok); }
 
 #main {
   flex: 1;
@@ -81,13 +110,13 @@ body {
   right: 20px;
   width: 200px;
   height: 150px;
-  border: 1px solid #3a2e20;
-  border-radius: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
   overflow: hidden;
-  background: #000;
+  background: #120a1e;
 }
 /* Hidden by default for privacy; the video stays in the DOM (slid off-screen)
-   so hand tracking keeps running. The CAM button toggles .is-hidden. */
+   so hand tracking keeps running. The camera button toggles .is-hidden. */
 #video-container {
   transition: transform 0.25s ease, opacity 0.25s ease;
 }
@@ -100,12 +129,12 @@ body {
    skeleton drawn on #hand-canvas is shown, over the dark container background. */
 #video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0; }
 #video-container::after {
-  content: 'HAND CAPTURE';
+  content: 'ハンドキャプチャ';
   position: absolute;
-  top: 5px; left: 7px;
-  font-size: 8px;
+  top: 6px; left: 8px;
+  font-size: 9px;
   letter-spacing: 0.1em;
-  color: #7a6a50;
+  color: var(--ink-dim);
   pointer-events: none;
 }
 #hand-canvas {
@@ -115,33 +144,38 @@ body {
   transform: scaleX(-1);
 }
 
-/* Parameter panel */
+/* Settings panel — collapsed by default to a conspicuous pill */
 #params {
   position: absolute;
-  top: 20px;
-  left: 20px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid #3a2e20;
-  border-radius: 4px;
-  padding: 14px;
-  min-width: 180px;
-  font-size: 11px;
+  top: 16px;
+  left: 16px;
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 14px;
+  min-width: 200px;
+  font-size: 12px;
+  backdrop-filter: blur(6px);
 }
-/* Collapsible panel: the toggle button is always visible; .is-collapsed hides
-   the body so the panel shrinks to a pill on narrow screens. */
+#params.is-collapsed {
+  min-width: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(255, 184, 102, 0.25);
+}
 .panel-toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 0;
+  padding: 2px 0;
   border: none;
   background: transparent;
-  color: #c8a96e;
-  font-family: 'Courier New', monospace;
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   cursor: pointer;
 }
 .panel-toggle .chevron { transition: transform 0.2s ease; }
@@ -150,13 +184,12 @@ body {
 .panel-body { margin-top: 12px; }
 
 #params h3 {
-  color: #c8a96e;
+  color: var(--accent);
   margin-bottom: 10px;
-  letter-spacing: 0.15em;
-  font-size: 10px;
-  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
 }
-#params h3.section-gap { margin-top: 14px; }
+#params h3.section-gap { margin-top: 16px; }
 
 .param-row {
   display: flex;
@@ -165,45 +198,91 @@ body {
   margin-bottom: 8px;
   gap: 10px;
 }
-.param-row label { color: #8a7a60; }
+.param-row label { color: var(--ink-dim); white-space: nowrap; }
 .param-row input[type=range] {
-  width: 80px;
-  accent-color: #c8a96e;
+  width: 84px;
+  accent-color: var(--accent);
 }
-.param-row span { color: #e8d5b0; min-width: 28px; text-align: right; }
-.param-row--presets { gap: 4px; margin-top: 8px; }
+.param-row span { color: var(--ink); min-width: 32px; text-align: right; font-size: 11px; }
+.param-row--presets { gap: 6px; margin-bottom: 10px; }
+
+/* Calibration — the most important hand-mode action, so it gets a big
+   front-and-center button. Hidden until the camera is active; pulses until
+   the first successful calibration. */
+#calibrate-area {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 5;
+  transition: opacity 0.3s ease;
+}
+#calibrate-area.is-hidden { opacity: 0; pointer-events: none; }
+
+#btn-calib {
+  padding: 12px 26px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--coral), var(--accent));
+  color: #2a1430;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(255, 126, 103, 0.45);
+  animation: calib-pulse 1.8s ease-in-out infinite;
+  transition: transform 0.15s;
+}
+#btn-calib:hover { transform: scale(1.05); }
+#btn-calib.is-done {
+  animation: none;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  box-shadow: none;
+}
+@keyframes calib-pulse {
+  0%, 100% { box-shadow: 0 4px 18px rgba(255, 126, 103, 0.45); }
+  50% { box-shadow: 0 4px 30px rgba(255, 184, 102, 0.8); }
+}
 
 #calib-status {
-  font-size: 10px;
-  color: #7a6a50;
-  margin-top: 6px;
-  text-align: center;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  background: rgba(18, 10, 30, 0.55);
+  border-radius: 999px;
+  padding: 4px 14px;
+  display: inline-block;
 }
-.btn-calib { margin-top: 8px; }
 
 /* Hints */
 #hints {
   position: absolute;
-  bottom: 20px;
-  left: 20px;
+  bottom: 16px;
+  left: 16px;
   font-size: 10px;
-  color: #5a4a30;
-  line-height: 1.8;
-  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  opacity: 0.7;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
 }
 
-/* Mouse-mode badge */
+/* Mode badge */
 #mode-badge {
   position: absolute;
-  top: 20px;
-  right: 230px;
-  font-size: 10px;
-  color: #7a6a50;
-  letter-spacing: 0.1em;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 4px 8px;
-  border-radius: 2px;
-  border: 1px solid #3a2e20;
+  top: 16px;
+  right: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.06em;
+  background: var(--panel);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
 }
 
 /* Help modal */
@@ -211,7 +290,7 @@ body {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(10, 5, 20, 0.78);
   z-index: 100;
   align-items: center;
   justify-content: center;
@@ -219,21 +298,22 @@ body {
 #help-modal.is-open { display: flex; }
 
 .modal-content {
-  background: #1a1410;
-  border: 1px solid #3a2e20;
-  border-radius: 6px;
-  padding: 28px 32px;
-  max-width: 420px;
-  color: #e8d5b0;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 2;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 30px;
+  max-width: 440px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.9;
 }
-.modal-content b { color: #c8a96e; }
+.modal-content b { color: var(--accent); }
 .modal-title {
-  color: #c8a96e;
-  font-size: 14px;
-  letter-spacing: 0.15em;
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   margin-bottom: 12px;
 }
-.modal-actions { text-align: center; margin-top: 12px; }
+.modal-actions { text-align: center; margin-top: 14px; }

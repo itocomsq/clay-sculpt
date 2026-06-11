@@ -28,10 +28,14 @@ progressive enhancement and every camera failure mode degrades gracefully to
 - A single clay body: an **icosphere** of radius `2`, subdivision level `5`
   (~10,242 vertices), uniformly distributed so deformation is stable everywhere
   (a UV `SphereGeometry` would pinch at the poles).
-- Warm clay material: `MeshStandardMaterial`, color `#c8a070`, roughness `0.85`.
+- Warm clay material: `MeshStandardMaterial`, color `#e09060` (vivid
+  terracotta), roughness `0.8`.
 - Lighting: ambient + key (shadow-casting) + fill + rim, tuned for a clay look.
-- Background and fog color `#1a1410`.
+- Background and fog color `#241733` (deep plum — playful contrast against the
+  warm clay).
 - Camera: perspective, FOV `45`, orbits the origin at radius `[3, 15]`.
+- **UI language is Japanese** (tools, status, hints, help). Tool/preset buttons
+  carry per-item accent colors (push=coral, pull=teal, smooth=lavender).
 
 ---
 
@@ -61,35 +65,46 @@ surface and while hand mode is active.
 
 ### 3.2 Tools
 
-| Tool | Effect |
+| Tool (label) | Effect |
 |------|--------|
-| `PUSH` | Inject velocity along the camera→hit ray direction (dent inward) |
-| `PULL` | Inject velocity along the surface normal (pull outward) |
-| `SMOOTH` | Bake the current deformed position into the rest position (freezes the shape locally) |
-| `RESET` | Rebuild a fresh sphere (discards all deformation) |
+| `push`（押す） | Inject velocity along the camera→hit ray direction (dent inward) |
+| `pull`（引く） | Inject velocity along the surface normal (pull outward) |
+| `smooth`（ならす） | Bake the current deformed position into the rest position (freezes the shape locally) |
+| リセット | Rebuild a fresh sphere (discards all deformation) |
 
-Exactly one of PUSH/PULL/SMOOTH is active at a time; the active button is
-highlighted.
+Exactly one of 押す/引く/ならす is active at a time; the active button is
+highlighted in its own accent color. Selecting a tool does not clear the
+camera-toggle button's active state.
 
 ### 3.3 Brush parameters (sliders)
 
-| Param | Range | Default | Meaning |
+| Param (label) | Range | Default | Meaning |
 |-------|-------|---------|---------|
-| Radius | 0.1–1.5 | 0.6 | Influence radius of the brush |
-| Strength | 0.01–0.15 | 0.04 | Force magnitude injected per step |
-| Falloff | 1–5 | 2.5 | Exponent of the distance falloff curve |
-| Volume | 0–0.8 | 0.3 | **Currently inert** — wired to UI but not read by the sim (see §7) |
+| 半径 | 0.1–1.5 | 0.6 | Influence radius of the brush |
+| 強さ | 0.01–0.15 | 0.04 | Force magnitude injected per step |
+| ぼかし | 1–5 | 2.5 | Exponent of the distance falloff curve |
 
 ### 3.4 Panel & camera preview
 
-- The controls panel has a **Controls** toggle that collapses its body to a small
-  pill, so it does not block the canvas on narrow screens. Expanded by default.
-- The webcam **preview is hidden by default** (privacy). A **CAM** button in the
-  header slides the preview in/out. Hiding the preview does **not** affect hand
-  tracking — the `<video>` element stays in the DOM and keeps feeding MediaPipe.
-- When shown, the preview displays **only the tracked hand skeleton** ("HAND
-  CAPTURE") on a dark background, never the raw camera image. The `<video>` is
-  kept playing (opacity 0) because MediaPipe still needs its frames.
+- The settings panel (⚙ 設定) is **collapsed by default** to a conspicuous pill
+  (accent border + glow) so the canvas stays clear; tapping it expands the
+  sliders (ブラシ / 素材 / 手の奥行き).
+- The webcam **preview is hidden by default** (privacy). A **カメラ** button in
+  the header slides the preview in/out. Hiding the preview does **not** affect
+  hand tracking — the `<video>` element stays in the DOM and keeps feeding
+  MediaPipe.
+- When shown, the preview displays **only the tracked hand skeleton**
+  (「ハンドキャプチャ」) on a dark background, never the raw camera image. The
+  `<video>` is kept playing (opacity 0) because MediaPipe still needs its
+  frames.
+
+### 3.5 Calibration button
+
+Calibration is the single most important hand-mode action, so it is **not**
+buried in the settings panel: a large gradient button（✋ 手の位置あわせ）sits
+bottom-center of the canvas. It is hidden until the camera becomes active,
+**pulses** until the first successful calibration, and shows guidance/status
+text beneath it (idle hint → sampling countdown → success/failure).
 
 ---
 
@@ -154,10 +169,12 @@ contact radii are likewise constant.
 
 ### 5.2 Calibration
 
-Pressing **CALIBRATE** samples the first hand's wrist→middle-knuckle size for 2
-seconds and takes the **median** as the reference size (`handScale = 1.0`). Status
-text reports sampling progress, success (`Calibrated (ref=…)`), or
-`Failed: hand not detected` (fewer than 5 samples).
+Pressing **✋ 手の位置あわせ** (see §3.5) samples the first hand's
+wrist→middle-knuckle size for 2 seconds and takes the **median** as the
+reference size (`handScale = 1.0`). Status text below the button reports
+sampling progress（はかってます… N秒）, success（OK！この距離が基準になりました）,
+or failure（手が見つかりませんでした — fewer than 5 samples）. On the first
+success the button stops pulsing and switches to a quiet style.
 
 ### 5.3 Interactions
 
@@ -196,32 +213,27 @@ per hand (grabbing suppresses push for that hand).
 
 | State | Status text |
 |-------|-------------|
-| Connecting | `CAMERA: CONNECTING...` |
-| Active | `CAMERA: ACTIVE` (green) |
-| API missing | `CAMERA: NOT SUPPORTED (MOUSE MODE)` |
-| No device | `CAMERA: NOT FOUND (MOUSE MODE)` |
-| Permission denied | `CAMERA: DENIED (MOUSE MODE)` |
-| MediaPipe init throws | `CAMERA: UNAVAILABLE (MOUSE MODE)` |
+| Connecting | `カメラ: 接続中...` |
+| Active | `カメラ: オン` (green) — also reveals the calibration button (§3.5) |
+| API missing | `カメラ: 非対応（マウスモード）` |
+| No device | `カメラ: 見つかりません（マウスモード）` |
+| Permission denied | `カメラ: 許可されていません（マウスモード）` |
+| MediaPipe init throws | `カメラ: 利用不可（マウスモード）` |
 
-The mode badge shows `HAND MODE` or `MOUSE MODE` accordingly. **No camera failure
-may break mouse sculpting.**
+The mode badge shows `✋ ハンドモード` or `🖱 マウスモード` accordingly. **No
+camera failure may break mouse sculpting.**
 
 ---
 
-## 7. Known issues / non-goals (carried over from current behavior)
+## 7. Known issues / non-goals
 
-These are documented as-is so the refactor preserves behavior; fixing them is out
-of scope for the refactor itself:
-
-- **`Volume` slider is inert** — `volumePreserve` is set from the UI but never read
-  by the simulation. Kept for parity; a future spec change should either implement
-  volume preservation or remove the control.
-- **Dead code** — `smoothPass()` (physics.js), `detectHandPose()` and
-  `lmToSurface()` (hands.js) exist but are never called. Preserved during refactor
-  (not deleted) and flagged here.
 - **`manifest.json` references `icon-192.png` / `icon-512.png`** which are not in
   the repo. PWA install will lack icons until they are added.
 - No persistence: refreshing the page resets the clay.
+
+Resolved in the 2026-06 UI overhaul: the inert `Volume` slider was removed
+(control and `volumePreserve` field), and the dead code carried over from the
+original (`smoothPass()`, `detectHandPose()`, `lmToSurface()`) was deleted.
 
 ---
 

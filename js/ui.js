@@ -12,7 +12,6 @@ const SLIDER_BINDINGS = [
   { id: 'p-radius', out: 'v-radius', set: v => { brush.radius = v; } },
   { id: 'p-strength', out: 'v-strength', set: v => { brush.strength = v; } },
   { id: 'p-falloff', out: 'v-falloff', set: v => { brush.falloff = v; } },
-  { id: 'p-volume', out: 'v-volume', set: v => { brush.volumePreserve = v; } },
   { id: 'p-spring', out: 'v-spring', set: v => { PHYS.springK = v; } },
   { id: 'p-rest', out: 'v-rest', set: v => { PHYS.restK = v; } },
   { id: 'p-damp', out: 'v-damp', set: v => { PHYS.damping = v; } },

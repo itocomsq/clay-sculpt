@@ -24,7 +24,8 @@ Hand-tracking 3D clay sculpting in your browser.
 ## Hand tracking setup
 
 1. Allow camera access when prompted
-2. Press **CALIBRATE** while holding your hand at your preferred sculpting distance
+2. Press **✋ 手の位置あわせ** (the pulsing button bottom-center) while holding
+   your hand at your preferred sculpting distance
 3. Start sculpting!
 
 ## Deploy to GitHub Pages

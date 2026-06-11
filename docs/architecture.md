@@ -39,7 +39,7 @@ time any module executes.
 | `geometry.js` | icosphere generation + adjacency table | `buildIcosphere(radius, subdivisions)` |
 | `clay.js` | `clay` state object (`geometry`, `mesh`, `vel`, `rest`) | `clay`, `createMesh()`, `resetMesh()` |
 | `sculpt.js` | `brush` state, falloff curve, force injection | `brush`, `setTool()`, `falloff()`, `sculptAt()` |
-| `physics.js` | `PHYS`, `PRESETS`, the per-frame sim | `PHYS`, `PRESETS`, `applyPreset()`, `physicsStep()`, `smoothPass()` |
+| `physics.js` | `PHYS`, `PRESETS`, the per-frame sim | `PHYS`, `PRESETS`, `applyPreset()`, `physicsStep()` |
 | `pointer.js` | orbit state, brush cursor, pointer events | `cursorMesh`, `initPointer()` |
 | `hands.js` | MediaPipe pipeline, depth model, calibration, gestures | `DEPTH_CFG`, `startCamera()`, `startCalibration()` |
 | `ui.js` | all DOM event wiring | `initUI()` |

@@ -1,12 +1,12 @@
 {
   "name": "Clay Sculpt",
   "short_name": "Clay Sculpt",
-  "description": "Hand-tracking 3D clay sculpting in your browser",
+  "description": "ブラウザで遊べるハンドトラッキング3Dねんど",
   "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#1a1410",
-  "theme_color": "#1a1410",
+  "background_color": "#241733",
+  "theme_color": "#241733",
   "icons": [
     {
       "src": "icon-192.png",

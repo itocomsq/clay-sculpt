@@ -69,24 +69,6 @@ const handGroups = [0, 1].map(hi => {
   return { group, joints, bones };
 });
 
-// Landmark → clay surface intersection (screen-space, Z ignored). Currently
-// unused; retained from the original (see spec §7).
-function lmToSurface(lm, idx) {
-  const nx = 1 - lm[idx].x;
-  const ny = lm[idx].y;
-  const ndcX = nx * 2 - 1;
-  const ndcY = -(ny * 2 - 1);
-  raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-  const hits = raycaster.intersectObject(clay.mesh);
-  if (hits.length === 0) return null;
-  return {
-    point: hits[0].point.clone(),
-    ray: raycaster.ray.direction.clone(),
-    displayPt: hits[0].point.clone()
-      .addScaledVector(raycaster.ray.direction, -0.15),
-  };
-}
-
 // ── Pinch / grab state ──
 const grabState = [null, null];
 const pinchState = [false, false];
@@ -139,7 +121,7 @@ export function startCalibration() {
   calibSamples = [];
   calibEndTime = performance.now() + 2000;
   const el = document.getElementById('calib-status');
-  if (el) el.textContent = 'Hold your hand still...';
+  if (el) el.textContent = '手をそのまま動かさないで…';
 }
 
 function feedCalibration(lm) {
@@ -155,12 +137,14 @@ function feedCalibration(lm) {
     if (calibSamples.length > 5) {
       calibSamples.sort((a, b) => a - b); // median is outlier-robust
       handSizeRef = calibSamples[Math.floor(calibSamples.length / 2)];
-      if (el) el.textContent = `Calibrated (ref=${handSizeRef.toFixed(3)})`;
+      if (el) el.textContent = 'OK！この距離が基準になりました ✨';
+      // Stop the attention-pulse once calibrated.
+      document.getElementById('btn-calib')?.classList.add('is-done');
     } else {
-      if (el) el.textContent = 'Failed: hand not detected';
+      if (el) el.textContent = '手が見つかりませんでした。カメラに手をかざしてもう一度';
     }
   } else {
-    if (el) el.textContent = `Sampling... ${(remaining / 1000).toFixed(1)}s`;
+    if (el) el.textContent = `はかってます… ${(remaining / 1000).toFixed(1)}秒`;
   }
 }
 
@@ -367,15 +351,6 @@ function updateHandMesh(lm, handIdx) {
   });
 }
 
-// Open / grip pose. Currently unused; retained from the original (see spec §7).
-function detectHandPose(lm) {
-  let foldCount = 0;
-  for (const tip of [8, 12, 16, 20]) {
-    if (lm[tip].y > lm[tip - 1].y + 0.02) foldCount++;
-  }
-  return foldCount >= 3 ? 'grip' : 'open';
-}
-
 let mpHands = null;
 
 function initMediaPipe() {
@@ -435,12 +410,14 @@ function initMediaPipe() {
     });
     cam.start();
 
-    statusEl.textContent = 'CAMERA: ACTIVE';
+    statusEl.textContent = 'カメラ: オン';
     statusEl.className = 'active';
-    modeBadge.textContent = 'HAND MODE';
+    modeBadge.textContent = '✋ ハンドモード';
+    // Hand mode is usable now — surface the calibration button.
+    document.getElementById('calibrate-area')?.classList.remove('is-hidden');
   } catch (e) {
-    statusEl.textContent = 'CAMERA: UNAVAILABLE (MOUSE MODE)';
-    modeBadge.textContent = 'MOUSE MODE';
+    statusEl.textContent = 'カメラ: 利用不可（マウスモード）';
+    modeBadge.textContent = '🖱 マウスモード';
     console.warn('MediaPipe init failed:', e);
   }
 }
@@ -448,8 +425,8 @@ function initMediaPipe() {
 export async function startCamera() {
   // Every feature works with the mouse alone; the camera is an enhancement.
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    statusEl.textContent = 'CAMERA: NOT SUPPORTED (MOUSE MODE)';
-    modeBadge.textContent = 'MOUSE MODE';
+    statusEl.textContent = 'カメラ: 非対応（マウスモード）';
+    modeBadge.textContent = '🖱 マウスモード';
     return;
   }
   try {
@@ -459,9 +436,9 @@ export async function startCamera() {
     initMediaPipe();
   } catch (e) {
     const msg = e.name === 'NotFoundError'
-      ? 'CAMERA: NOT FOUND (MOUSE MODE)'
-      : 'CAMERA: DENIED (MOUSE MODE)';
+      ? 'カメラ: 見つかりません（マウスモード）'
+      : 'カメラ: 許可されていません（マウスモード）';
     statusEl.textContent = msg;
-    modeBadge.textContent = 'MOUSE MODE';
+    modeBadge.textContent = '🖱 マウスモード';
   }
 }

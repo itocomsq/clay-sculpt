@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Hand-tracking 3D clay sculpting in your browser. Use your hands to push, pull, and pinch virtual clay.">
-<meta name="theme-color" content="#1a1410">
+<meta name="description" content="ブラウザで遊べるハンドトラッキング3Dねんど。手をかざして押したり、つまんで引っぱったり。">
+<meta name="theme-color" content="#241733">
 <!-- OGP (social share card) -->
-<meta property="og:title" content="Clay Sculpt — Hand Tracking 3D">
-<meta property="og:description" content="Push, pull and pinch virtual clay with your hands in the browser.">
+<meta property="og:title" content="Clay Sculpt — 手でこねる3Dねんど">
+<meta property="og:description" content="ブラウザの中のねんどを、手で押したりつまんだりして遊ぼう。">
 <meta property="og:type" content="website">
 <!-- PWA (add to home screen) -->
 <link rel="manifest" href="manifest.json">
@@ -15,44 +15,43 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Clay Sculpt">
-<title>Clay Sculpt</title>
+<title>Clay Sculpt — 手でこねる3Dねんど</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <div id="header">
   <h1>Clay Sculpt</h1>
-  <button class="mode-btn active" id="btn-push" data-tool="push">PUSH</button>
-  <button class="mode-btn" id="btn-pull" data-tool="pull">PULL</button>
-  <button class="mode-btn" id="btn-smooth" data-tool="smooth">SMOOTH</button>
-  <button class="mode-btn" data-action="reset">RESET</button>
-  <div id="status">CAMERA: CONNECTING...</div>
-  <button class="mode-btn" id="btn-camtoggle" data-action="toggle-camera">CAM</button>
+  <button class="mode-btn tool-push active" id="btn-push" data-tool="push">押す</button>
+  <button class="mode-btn tool-pull" id="btn-pull" data-tool="pull">引く</button>
+  <button class="mode-btn tool-smooth" id="btn-smooth" data-tool="smooth">ならす</button>
+  <button class="mode-btn" data-action="reset">リセット</button>
+  <div id="status">カメラ: 接続中...</div>
+  <button class="mode-btn" id="btn-camtoggle" data-action="toggle-camera">カメラ</button>
   <button class="mode-btn mode-btn--help" data-action="help-open">?</button>
 </div>
 
 <!-- Help modal -->
 <div id="help-modal">
   <div class="modal-content">
-    <div class="modal-title">CLAY SCULPT — HOW TO USE</div>
-    <b>MOUSE</b><br>
-    · Left drag → sculpt<br>
-    · Right drag → rotate<br>
-    · Scroll → zoom<br><br>
-    <b>TOUCH</b><br>
-    · 1 finger → sculpt<br>
-    · 2 fingers → rotate<br>
-    · Pinch → zoom<br><br>
-    <b>HAND (camera required)</b><br>
-    · Touch surface → push<br>
-    · Move while touching → sculpt<br>
-    · Pinch (thumb+index) → grab &amp; pull<br>
-    · CALIBRATE: hold hand at desired distance, press button<br><br>
-    <b>TOOLS</b><br>
-    · PUSH / PULL / SMOOTH / RESET<br>
-    · CLAY / SLIME / RUBBER presets<br><br>
+    <div class="modal-title">あそびかた</div>
+    <b>マウス</b><br>
+    ・左ドラッグ → 成形<br>
+    ・右ドラッグ → 回転<br>
+    ・ホイール → ズーム<br><br>
+    <b>タッチ</b><br>
+    ・1本指 → 成形<br>
+    ・2本指 → 回転<br>
+    ・ピンチ → ズーム<br><br>
+    <b>ハンド（カメラ使用）</b><br>
+    ・指で触れる → 押しこむ<br>
+    ・親指＋人差し指でつまむ → 引っぱる<br>
+    ・最初に「✋ 手の位置あわせ」：ちょうどいい距離に手をかざしてボタンを押す<br><br>
+    <b>ツール</b><br>
+    ・押す / 引く / ならす / リセット<br>
+    ・素材プリセット：ねんど / スライム / ゴム<br><br>
     <div class="modal-actions">
-      <button class="mode-btn" data-action="help-close">CLOSE</button>
+      <button class="mode-btn" data-action="help-close">とじる</button>
     </div>
   </div>
 </div>
@@ -67,87 +66,86 @@
     <canvas id="hand-canvas"></canvas>
   </div>
 
-  <div id="params">
-    <button class="panel-toggle" data-action="toggle-params" aria-expanded="true">
-      <span>Controls</span><span class="chevron">▾</span>
+  <div id="params" class="is-collapsed">
+    <button class="panel-toggle" data-action="toggle-params" aria-expanded="false">
+      <span>⚙ 設定</span><span class="chevron">▾</span>
     </button>
     <div class="panel-body">
-    <h3>Parameters</h3>
+    <h3>ブラシ</h3>
     <div class="param-row">
-      <label>Radius</label>
+      <label>半径</label>
       <input type="range" id="p-radius" min="0.1" max="1.5" step="0.05" value="0.6">
       <span id="v-radius">0.60</span>
     </div>
     <div class="param-row">
-      <label>Strength</label>
+      <label>強さ</label>
       <input type="range" id="p-strength" min="0.01" max="0.15" step="0.005" value="0.04">
       <span id="v-strength">0.040</span>
     </div>
     <div class="param-row">
-      <label>Falloff</label>
+      <label>ぼかし</label>
       <input type="range" id="p-falloff" min="1" max="5" step="0.5" value="2.5">
       <span id="v-falloff">2.5</span>
     </div>
-    <div class="param-row">
-      <label>Volume</label>
-      <input type="range" id="p-volume" min="0" max="0.8" step="0.05" value="0.3">
-      <span id="v-volume">0.30</span>
-    </div>
 
-    <h3 class="section-gap">Material</h3>
+    <h3 class="section-gap">素材</h3>
+    <div class="param-row param-row--presets">
+      <button class="mode-btn mode-btn--flex preset-clay" data-preset="clay">ねんど</button>
+      <button class="mode-btn mode-btn--flex preset-slime" data-preset="slime">スライム</button>
+      <button class="mode-btn mode-btn--flex preset-rubber" data-preset="rubber">ゴム</button>
+    </div>
     <div class="param-row">
-      <label>Spring</label>
+      <label>ハリ</label>
       <input type="range" id="p-spring" min="1" max="20" step="0.5" value="8">
       <span id="v-spring">8.0</span>
     </div>
     <div class="param-row">
-      <label>Elastic</label>
+      <label>弾力</label>
       <input type="range" id="p-rest" min="0" max="15" step="0.5" value="4">
       <span id="v-rest">4.0</span>
     </div>
     <div class="param-row">
-      <label>Damping</label>
+      <label>ゆれ止め</label>
       <input type="range" id="p-damp" min="0.6" max="0.99" step="0.01" value="0.82">
       <span id="v-damp">0.82</span>
     </div>
     <div class="param-row">
-      <label>Plastic</label>
+      <label>形のこり</label>
       <input type="range" id="p-plastic" min="0" max="0.3" step="0.01" value="0.06">
       <span id="v-plastic">0.06</span>
     </div>
-    <div class="param-row param-row--presets">
-      <button class="mode-btn mode-btn--flex" data-preset="clay">CLAY</button>
-      <button class="mode-btn mode-btn--flex" data-preset="slime">SLIME</button>
-      <button class="mode-btn mode-btn--flex" data-preset="rubber">RUBBER</button>
-    </div>
 
-    <h3 class="section-gap">Depth</h3>
+    <h3 class="section-gap">手の奥行き（調整用）</h3>
     <div class="param-row">
-      <label>Offset</label>
+      <label>位置</label>
       <input type="range" id="p-dbase" min="-2" max="2" step="0.1" value="0.3">
       <span id="v-dbase">0.3</span>
     </div>
     <div class="param-row">
-      <label>Gain</label>
+      <label>感度</label>
       <input type="range" id="p-dgain" min="0.5" max="8" step="0.1" value="3.2">
       <span id="v-dgain">3.2</span>
     </div>
     <div class="param-row">
-      <label>FingerZ</label>
+      <label>指の奥行き</label>
       <input type="range" id="p-drelz" min="0" max="8" step="0.5" value="3.0">
       <span id="v-drelz">3.0</span>
     </div>
-    <button class="mode-btn mode-btn--block btn-calib" id="btn-calib" data-action="calibrate">CALIBRATE</button>
-    <div id="calib-status"></div>
     </div>
   </div>
 
-  <div id="mode-badge">MOUSE MODE</div>
+  <div id="mode-badge">🖱 マウスモード</div>
+
+  <!-- Calibration: shown once the camera is active. Pulses until first success. -->
+  <div id="calibrate-area" class="is-hidden">
+    <button id="btn-calib" data-action="calibrate">✋ 手の位置あわせ</button>
+    <div id="calib-status">ちょうどいい距離に手をかざして、ボタンを押してね</div>
+  </div>
 
   <div id="hints">
-    [MOUSE] drag to sculpt · scroll to zoom · right-drag to rotate<br>
-    [TOUCH] 1 finger = sculpt · 2 fingers = rotate · pinch = zoom<br>
-    [HAND] fingertips push on contact · pinch (thumb+index) = grab &amp; pull · both hands OK
+    [マウス] ドラッグ＝成形 ・ ホイール＝ズーム ・ 右ドラッグ＝回転<br>
+    [タッチ] 1本指＝成形 ・ 2本指＝回転 ・ ピンチ＝ズーム<br>
+    [ハンド] 指で触れて押す ・ つまんで引っぱる（両手OK）
   </div>
 </div>
 
