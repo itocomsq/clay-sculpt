@@ -36,9 +36,41 @@ Hand-tracking 3D clay sculpting in your browser.
 
 ## Tech stack
 
-- [Three.js r128](https://threejs.org/) — 3D rendering
-- [MediaPipe Hands](https://google.github.io/mediapipe/solutions/hands) — hand tracking
+- [Three.js r128](https://threejs.org/) — 3D rendering (MIT)
+- [MediaPipe Hands](https://google.github.io/mediapipe/solutions/hands) — hand tracking (Apache-2.0)
 - Icosphere mesh with viscoelastic physics simulation
+
+No build step — Three.js and MediaPipe load from CDN as globals, and the app code
+is plain ES modules served as static files.
+
+## Project structure
+
+```
+index.html        markup only
+css/styles.css    all styling
+js/
+  main.js         entry point + render loop
+  scene.js        renderer, camera, lights, raycaster
+  geometry.js     icosphere generator
+  clay.js         clay model (mesh + physics buffers)
+  sculpt.js       brush state + force injection
+  physics.js      viscoelastic step + presets
+  pointer.js      mouse / touch / orbit + brush cursor
+  hands.js        MediaPipe hand tracking + 3D depth + gestures
+  ui.js           DOM wiring (buttons, sliders, presets, modal)
+docs/
+  specs/clay-sculpt.md   behavior spec (source of truth)
+  architecture.md        module map + data flow
+```
+
+## Develop locally
+
+ES modules require HTTP (not `file://`):
+
+```bash
+python3 -m http.server 8000
+# open http://localhost:8000/
+```
 
 ## License
 
