@@ -44,7 +44,16 @@ progressive enhancement and every camera failure mode degrades gracefully to
 | Left drag | Sculpt with the active tool at the ray hit point |
 | Right drag | Orbit the camera (azimuth + polar, polar clamped to `[0.1, π−0.1]`) |
 | Scroll wheel | Zoom (orbit radius clamped to `[3, 15]`) |
-| Touch drag | Sculpt (single touch) |
+| 1-finger drag | Sculpt with the active tool |
+| 2-finger drag | Orbit the camera |
+| 2-finger pinch | Zoom |
+
+Once a two-finger gesture starts, sculpting is suppressed until all fingers lift
+(so releasing one finger leaves no accidental dent).
+
+On load and on viewport resize, the camera auto-fits so the whole clay body stays
+on screen (the limiting dimension on portrait phones is width). Auto-fit stops
+once the user zooms manually (wheel or pinch), to respect their chosen framing.
 
 A translucent wireframe **brush cursor** follows the pointer over the clay surface
 and is scaled to the current brush radius. It is hidden when the pointer leaves the
@@ -78,6 +87,9 @@ highlighted.
 - The webcam **preview is hidden by default** (privacy). A **CAM** button in the
   header slides the preview in/out. Hiding the preview does **not** affect hand
   tracking — the `<video>` element stays in the DOM and keeps feeding MediaPipe.
+- When shown, the preview displays **only the tracked hand skeleton** ("HAND
+  CAPTURE") on a dark background, never the raw camera image. The `<video>` is
+  kept playing (opacity 0) because MediaPipe still needs its frames.
 
 ---
 

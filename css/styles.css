@@ -96,7 +96,18 @@ body {
   pointer-events: none;
   transform: translateX(calc(100% + 24px));
 }
-#video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+/* The raw feed is kept playing (MediaPipe needs it) but hidden — only the hand
+   skeleton drawn on #hand-canvas is shown, over the dark container background. */
+#video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0; }
+#video-container::after {
+  content: 'HAND CAPTURE';
+  position: absolute;
+  top: 5px; left: 7px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #7a6a50;
+  pointer-events: none;
+}
 #hand-canvas {
   position: absolute;
   top: 0; left: 0;

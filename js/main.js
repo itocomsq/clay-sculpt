@@ -4,7 +4,7 @@
 import { scene, camera, renderer, resize } from './scene.js';
 import { createMesh } from './clay.js';
 import { physicsStep } from './physics.js';
-import { initPointer } from './pointer.js';
+import { initPointer, fitView } from './pointer.js';
 import { startCamera } from './hands.js';
 import { initUI } from './ui.js';
 
@@ -13,7 +13,8 @@ initPointer();
 initUI();
 startCamera();
 resize();
-window.addEventListener('resize', resize);
+fitView();
+window.addEventListener('resize', () => { resize(); fitView(); });
 
 function animate() {
   requestAnimationFrame(animate);
