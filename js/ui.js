@@ -45,11 +45,29 @@ const setHelpOpen = open => {
   document.getElementById(HELP_MODAL)?.classList.toggle('is-open', open);
 };
 
+function toggleParams(btn) {
+  const panel = document.getElementById('params');
+  if (!panel) return;
+  const collapsed = panel.classList.toggle('is-collapsed');
+  btn.setAttribute('aria-expanded', String(!collapsed));
+}
+
+// The camera preview starts hidden for privacy; this slides it in/out. Hand
+// tracking is unaffected — the <video> stays in the DOM either way.
+function toggleCamera(btn) {
+  const preview = document.getElementById('video-container');
+  if (!preview) return;
+  const visible = preview.classList.toggle('is-hidden') === false;
+  btn.classList.toggle('active', visible);
+}
+
 const ACTIONS = {
   reset: () => resetMesh(),
   calibrate: () => startCalibration(),
   'help-open': () => setHelpOpen(true),
   'help-close': () => setHelpOpen(false),
+  'toggle-params': btn => toggleParams(btn),
+  'toggle-camera': btn => toggleCamera(btn),
 };
 
 export function initUI() {
@@ -76,7 +94,7 @@ export function initUI() {
 
   document.querySelectorAll('[data-action]').forEach(btn => {
     const fn = ACTIONS[btn.dataset.action];
-    if (fn) btn.addEventListener('click', fn);
+    if (fn) btn.addEventListener('click', () => fn(btn));
   });
 
   // Close the help modal when the backdrop (not its content) is clicked.

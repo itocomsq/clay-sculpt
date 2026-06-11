@@ -27,6 +27,7 @@
   <button class="mode-btn" id="btn-smooth" data-tool="smooth">SMOOTH</button>
   <button class="mode-btn" data-action="reset">RESET</button>
   <div id="status">CAMERA: CONNECTING...</div>
+  <button class="mode-btn" id="btn-camtoggle" data-action="toggle-camera">CAM</button>
   <button class="mode-btn mode-btn--help" data-action="help-open">?</button>
 </div>
 
@@ -57,12 +58,16 @@
     <canvas id="three-canvas"></canvas>
   </div>
 
-  <div id="video-container">
+  <div id="video-container" class="is-hidden">
     <video id="video" autoplay playsinline></video>
     <canvas id="hand-canvas"></canvas>
   </div>
 
   <div id="params">
+    <button class="panel-toggle" data-action="toggle-params" aria-expanded="true">
+      <span>Controls</span><span class="chevron">▾</span>
+    </button>
+    <div class="panel-body">
     <h3>Parameters</h3>
     <div class="param-row">
       <label>Radius</label>
@@ -130,6 +135,7 @@
     </div>
     <button class="mode-btn mode-btn--block btn-calib" id="btn-calib" data-action="calibrate">CALIBRATE</button>
     <div id="calib-status"></div>
+    </div>
   </div>
 
   <div id="mode-badge">MOUSE MODE</div>

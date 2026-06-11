@@ -71,6 +71,14 @@ highlighted.
 | Falloff | 1–5 | 2.5 | Exponent of the distance falloff curve |
 | Volume | 0–0.8 | 0.3 | **Currently inert** — wired to UI but not read by the sim (see §7) |
 
+### 3.4 Panel & camera preview
+
+- The controls panel has a **Controls** toggle that collapses its body to a small
+  pill, so it does not block the canvas on narrow screens. Expanded by default.
+- The webcam **preview is hidden by default** (privacy). A **CAM** button in the
+  header slides the preview in/out. Hiding the preview does **not** affect hand
+  tracking — the `<video>` element stays in the DOM and keeps feeding MediaPipe.
+
 ---
 
 ## 4. Material (viscoelastic physics)
@@ -107,7 +115,8 @@ material sliders to match.
 ## 5. Hand tracking (progressive enhancement)
 
 Uses MediaPipe Hands (2 hands max). Each detected hand is drawn both as a 2D
-overlay on the mini camera preview and as a **3D skeleton** (21 joint spheres + 23
+overlay on the mini camera preview (hidden by default — see §3.4) and as a **3D
+skeleton** (21 joint spheres + 23
 bones) inside the scene. Hand 0 is warm-toned, hand 1 is cool-toned.
 
 ### 5.1 Depth model
