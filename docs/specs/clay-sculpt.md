@@ -157,7 +157,26 @@ text reports sampling progress, success (`Calibrated (ref=…)`), or
 | Gesture | Effect |
 |---------|--------|
 | Joint penetrates the clay | Inject force proportional to penetration depth, along the joint's motion direction (fallback: inward surface normal). Fingertips push harder than the palm. |
-| Pinch (thumb tip↔index tip distance < 0.055) | Grab the nearest surface vertex; while held, pull a neighborhood toward the pinch midpoint in 3D. Release on un-pinch. |
+| Pinch (thumb tip↔index tip) | Grab the nearest surface vertex; while held, pull a lump toward the pinch midpoint in 3D. Release on un-pinch. |
+
+**Pinch detection** is scale-invariant: the thumb↔index distance is divided by
+the current hand size (wrist→middle-knuckle), so the same physical finger gap
+triggers at any distance from the camera. It has hysteresis — pinch starts when
+the ratio drops below `0.38` and releases only above `0.60` — so a held grab
+does not flicker off from tracking jitter.
+
+**Grab acquisition** retries every frame while the pinch is held: pinching in
+the air and then moving toward the clay still grabs. The pinch midpoint must be
+within `1.1` world units of the surface to acquire.
+
+**Grab pull**: the neighborhood radius is `0.85` with a gentle falloff
+`(1 − d/r)^1.5` (wider and softer than the brush falloff), pull strength
+`0.55 ×` distance, capped at `0.2` per frame — a pinch visibly lifts a lump of
+clay, not a single point.
+
+**Feedback**: the thumb/index joint spheres brighten when a pinch is detected
+and glow (emissive) while actually grabbing. Losing hand tracking drops any
+active pinch/grab immediately.
 
 Sculpt-relevant joints: wrist + 5 fingertips. Pinch and push are mutually exclusive
 per hand (grabbing suppresses push for that hand).

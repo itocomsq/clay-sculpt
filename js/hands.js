@@ -5,7 +5,7 @@
 
 import { scene, camera, raycaster } from './scene.js';
 import { clay } from './clay.js';
-import { brush, sculptAt, falloff } from './sculpt.js';
+import { brush, sculptAt } from './sculpt.js';
 import { cursorMesh } from './pointer.js';
 
 const videoEl = document.getElementById('video');
@@ -89,10 +89,31 @@ function lmToSurface(lm, idx) {
 
 // ── Pinch / grab state ──
 const grabState = [null, null];
+const pinchState = [false, false];
 
-function isPinching(lm) {
+// Pinch detection is relative to the current hand size, so it triggers at the
+// same physical finger gap at any distance from the camera. Hysteresis
+// (on < off) keeps a held pinch from flickering and dropping the grab.
+const PINCH_ON = 0.38;
+const PINCH_OFF = 0.60;
+
+function isPinching(lm, handIdx) {
   const d = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-  return d < 0.055;
+  const size = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
+  const ratio = size > 1e-4 ? d / size : Infinity;
+  pinchState[handIdx] = pinchState[handIdx] ? ratio < PINCH_OFF : ratio < PINCH_ON;
+  return pinchState[handIdx];
+}
+
+const GRAB_CAPTURE = 1.1; // max pinch-midpoint → surface distance to acquire
+const GRAB_RADIUS = 0.85; // neighborhood pulled along with the grabbed vertex
+const GRAB_POWER = 0.55;
+const GRAB_MAX_PULL = 0.2;
+
+// Wider and gentler than the brush falloff so a pinch lifts a visible lump of
+// clay rather than a single point.
+function grabFalloff(d, r) {
+  return d >= r ? 0 : Math.pow(1 - d / r, 1.5);
 }
 
 // EMA-smoothed depth scale per hand.
@@ -222,13 +243,15 @@ function updateHandMesh(lm, handIdx) {
   const positions3D = Array.from({ length: 21 }, (_, i) => lmToWorld3D(lm, i, handScale));
 
   // ── Pinch / grab ──
-  const pinching = isPinching(lm);
+  const pinching = isPinching(lm, handIdx);
   const pinchMid3D = positions3D[4].clone().add(positions3D[8]).multiplyScalar(0.5);
 
+  // Acquisition retries every frame while the pinch is held, so pinching in
+  // the air and then approaching the surface still grabs.
   if (pinching && !grabState[handIdx]) {
     // Grab the surface vertex nearest the pinch midpoint.
     const check = checkInsideMesh(pinchMid3D);
-    if (check.surfacePoint && pinchMid3D.distanceTo(check.surfacePoint) < 0.8) {
+    if (check.surfacePoint && pinchMid3D.distanceTo(check.surfacePoint) < GRAB_CAPTURE) {
       const arr = clay.geometry.attributes.position.array;
       const count = clay.geometry.attributes.position.count;
       let minD = Infinity, minI = 0;
@@ -254,15 +277,13 @@ function updateHandMesh(lm, handIdx) {
     const fLen = Math.hypot(fx, fy, fz);
 
     if (fLen > 0.01) {
-      const GRAB_RADIUS = 0.5;
-      const GRAB_POWER = 0.4;
       const dirX = fx / fLen, dirY = fy / fLen, dirZ = fz / fLen;
-      const pull = Math.min(fLen * GRAB_POWER, 0.14);
+      const pull = Math.min(fLen * GRAB_POWER, GRAB_MAX_PULL);
 
       const count = clay.geometry.attributes.position.count;
       for (let i = 0; i < count; i++) {
         const dx = arr[i * 3] - gx, dy = arr[i * 3 + 1] - gy, dz = arr[i * 3 + 2] - gz;
-        const inf = falloff(Math.hypot(dx, dy, dz), GRAB_RADIUS);
+        const inf = grabFalloff(Math.hypot(dx, dy, dz), GRAB_RADIUS);
         if (inf < 0.001) continue;
         clay.vel[i * 3] += dirX * pull * inf;
         clay.vel[i * 3 + 1] += dirY * pull * inf;
@@ -316,9 +337,15 @@ function updateHandMesh(lm, handIdx) {
   // ── 3D display ──
   joints.forEach((m, i) => {
     m.position.copy(positions3D[i]);
+    const isPinchJoint = i === 4 || i === 8;
+    // Pinch feedback: thumb/index brighten when a pinch is detected and glow
+    // while actually grabbing, so the user can see what the tracker sees.
     m.material.opacity = touching[i] ? 1.0
-      : (grabState[handIdx] && (i === 4 || i === 8)) ? 1.0
-        : 0.55;
+      : (grabState[handIdx] && isPinchJoint) ? 1.0
+        : (pinchState[handIdx] && isPinchJoint) ? 0.9
+          : 0.55;
+    m.material.emissive.setHex(
+      grabState[handIdx] && isPinchJoint ? 0x886622 : 0x000000);
     m.scale.setScalar(Math.min(handScale, 1.8));
   });
   bones.forEach(({ line, a, b }) => {
@@ -362,7 +389,12 @@ function initMediaPipe() {
         ? results.multiHandLandmarks.length : 0;
 
       handGroups.forEach((hg, hi) => {
-        if (hi >= detectedCount) hg.group.visible = false;
+        if (hi >= detectedCount) {
+          hg.group.visible = false;
+          // Drop pinch/grab on tracking loss so a stale grab can't linger.
+          grabState[hi] = null;
+          pinchState[hi] = false;
+        }
       });
 
       if (detectedCount === 0) {
