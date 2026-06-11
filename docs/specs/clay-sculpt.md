@@ -145,6 +145,13 @@ joint is reconstructed from:
 Depth config defaults: `baseOffset 0.3`, `gain 3.2`, `relZGain 3.0`, `scaleEMA 0.7`
 (EMA smoothing of hand scale). `baseOffset`, `gain`, `relZGain` are slider-tunable.
 
+The skeleton has a **constant world size**: the joint spread is normalized
+around the wrist by `refDist / (handScale × wristDist)` (clamped to
+`[0.25, 2.0]`), cancelling both the larger apparent size and the deeper
+projection of a near hand. Moving the hand toward the camera reaches deeper
+into the scene — it does not enlarge the hand. Joint display spheres and push
+contact radii are likewise constant.
+
 ### 5.2 Calibration
 
 Pressing **CALIBRATE** samples the first hand's wrist→middle-knuckle size for 2

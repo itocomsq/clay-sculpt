@@ -240,7 +240,19 @@ function updateHandMesh(lm, handIdx) {
     + raw * (1 - DEPTH_CFG.scaleEMA);
   const handScale = smoothHandScale[handIdx];
 
-  const positions3D = Array.from({ length: 21 }, (_, i) => lmToWorld3D(lm, i, handScale));
+  // Normalize the joint spread around the wrist so the skeleton keeps a
+  // constant world size: a hand moving toward the camera should reach deeper,
+  // not grow. shrink cancels both the larger apparent size (handScale) and
+  // the deeper projection distance (wristDist vs the calibrated refDist).
+  const camDist = camera.position.length();
+  const refDist = camDist - SPHERE_R + DEPTH_CFG.baseOffset;
+  const wristDist = Math.max(0.5, refDist + (handScale - 1) * DEPTH_CFG.gain);
+  const shrink = Math.max(0.25, Math.min(2.0, refDist / (handScale * wristDist)));
+
+  const wristPos = lmToWorld3D(lm, 0, handScale);
+  const positions3D = Array.from({ length: 21 }, (_, i) => i === 0
+    ? wristPos
+    : lmToWorld3D(lm, i, handScale).sub(wristPos).multiplyScalar(shrink).add(wristPos));
 
   // ── Pinch / grab ──
   const pinching = isPinching(lm, handIdx);
@@ -323,7 +335,7 @@ function updateHandMesh(lm, handIdx) {
       lastLmWorld[key] = jPos.clone();
 
       const isTip = FINGER_TIPS.includes(i);
-      const jR = (isTip ? TIP_RADIUS : PALM_RADIUS) * Math.min(handScale, 1.6);
+      const jR = isTip ? TIP_RADIUS : PALM_RADIUS;
       const penForce = Math.min(check.penetration * 0.5, 0.1);
       const jStr = penForce * (isTip ? 1.2 : 0.6);
 
@@ -346,7 +358,6 @@ function updateHandMesh(lm, handIdx) {
           : 0.55;
     m.material.emissive.setHex(
       grabState[handIdx] && isPinchJoint ? 0x886622 : 0x000000);
-    m.scale.setScalar(Math.min(handScale, 1.8));
   });
   bones.forEach(({ line, a, b }) => {
     const pts = line.geometry.attributes.position;
