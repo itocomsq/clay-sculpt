@@ -153,12 +153,19 @@ joint is reconstructed from:
 
 1. A dynamic base distance = camera→sphere near-surface, so the calibrated hand
    position always lands "just inside" the surface regardless of zoom.
-2. `baseOffset` — fixed offset from that surface (positive = deeper).
-3. Apparent hand size relative to the calibrated reference, times `gain`.
+2. `baseOffset` — fixed offset from that surface (positive = deeper). The default
+   is **negative**: the calibrated neutral hand hovers *in front of* the surface,
+   so touching the clay requires reaching forward — the clay is "over there",
+   not already enveloping the hand.
+3. Apparent hand size mapped through the **reciprocal law**
+   `gain × (1 − 1/handScale)`. Apparent size is inversely proportional to
+   physical distance, so this gives equal world motion for equal physical motion
+   near and far (a linear map is over-sensitive near, under-sensitive far).
 4. Per-joint relative `z` (`lm.z − wrist.z`) times `relZGain`.
 
-Depth config defaults: `baseOffset 0.3`, `gain 3.2`, `relZGain 3.0`, `scaleEMA 0.7`
-(EMA smoothing of hand scale). `baseOffset`, `gain`, `relZGain` are slider-tunable.
+Depth config defaults: `baseOffset −0.8`, `gain 4.0`, `relZGain 3.0`, `scaleEMA 0.45`
+(EMA smoothing of hand scale — light enough that depth does not visibly lag).
+`baseOffset`, `gain`, `relZGain` are slider-tunable.
 
 The skeleton has a **constant world size**: the joint spread is normalized
 around the wrist by `refDist / (handScale × wristDist)` (clamped to
@@ -180,7 +187,7 @@ success the button stops pulsing and switches to a quiet style.
 
 | Gesture | Effect |
 |---------|--------|
-| Joint penetrates the clay | Inject force proportional to penetration depth, along the joint's motion direction (fallback: inward surface normal). Fingertips push harder than the palm. |
+| Joint touches the clay | **Positional collision**: vertices inside a joint's sphere collider are projected onto the collider surface and their into-collider velocity component is cancelled. The clay conforms to the hand's shape, rests against a stationary hand (it does not keep flowing away), and plasticity makes the imprint persist. |
 | Pinch (thumb tip↔index tip) | Grab the nearest surface vertex; while held, pull a lump toward the pinch midpoint in 3D. Release on un-pinch. |
 
 **Pinch detection** is scale-invariant: the thumb↔index distance is divided by
@@ -202,8 +209,12 @@ clay, not a single point.
 and glow (emissive) while actually grabbing. Losing hand tracking drops any
 active pinch/grab immediately.
 
-Sculpt-relevant joints: wrist + 5 fingertips. Pinch and push are mutually exclusive
-per hand (grabbing suppresses push for that hand).
+Contact joints: wrist + 5 fingertips + the 5 joints just below the tips (so a
+finger plows through clay along its length, not only at the tip). Collider
+radii: tip `0.16`, below-tip `0.13`, wrist `0.30`. The projection is softened by
+a per-frame stiffness factor `0.6`, so contact reads as viscous clay rather
+than a hard shell. Pinch and contact response are mutually exclusive per hand
+(grabbing suppresses contact for that hand).
 
 ---
 

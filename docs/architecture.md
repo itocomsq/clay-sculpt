@@ -53,8 +53,7 @@ in exported **objects** whose fields are mutated in place:
 - `clay` (in `clay.js`) — `createMesh()` reassigns its fields; every other module
   reads `clay.geometry` / `clay.mesh` / `clay.vel` / `clay.rest` live, so a RESET
   is picked up everywhere with no re-wiring.
-- `brush` (in `sculpt.js`) — sliders write `brush.radius` etc.; `hands.js`
-  temporarily overrides `brush.radius` per joint and restores it.
+- `brush` (in `sculpt.js`) — sliders write `brush.radius` etc.
 - `PHYS` (in `physics.js`) and `DEPTH_CFG` (in `hands.js`) — mutated by sliders and
   presets.
 
@@ -64,16 +63,19 @@ shared-instance semantics.
 ## Data flow (per frame)
 
 ```
-pointer / hands ──inject force──▶ sculptAt() ──writes──▶ clay.vel / clay.rest
+pointer ──inject force──▶ sculptAt() ──writes──▶ clay.vel / clay.rest
+hands   ──contact projection──▶ clay.geometry.position ── pinch pull ─▶ clay.vel
                                                               │
 main.animate() ─▶ physicsStep() ─reads vel,rest, writes──▶ clay.geometry.position
                                                               │
                 ─▶ renderer.render(scene, camera) ◀───────────┘
 ```
 
-- **Input → force**: `pointer.js` (mouse ray) and `hands.js` (joint penetration /
-  pinch) both call `sculptAt()`, which adds to the velocity buffer (push/pull) or
-  the rest buffer (smooth/grab) rather than moving vertices directly.
+- **Input → force**: `pointer.js` (mouse ray) calls `sculptAt()`, which adds to
+  the velocity buffer (push/pull) or the rest buffer (smooth) rather than moving
+  vertices directly. `hands.js` writes the clay buffers itself: contact projects
+  vertices out of the joint sphere colliders (positions, plus cancelling
+  into-collider velocity), and a pinch pull adds to the velocity buffer.
 - **Force → motion**: `physicsStep()` integrates velocity, applies neighbor springs
   + rest restoration + damping + plasticity, and writes the position buffer.
 - **Motion → pixels**: the render loop draws the updated mesh.
@@ -86,7 +88,7 @@ clay → scene, geometry
 sculpt → clay
 physics → clay
 pointer → scene, clay, sculpt
-hands → scene, clay, sculpt, pointer (cursorMesh)
+hands → scene, clay, pointer (cursorMesh)
 ui → sculpt, clay, physics, hands
 ```
 

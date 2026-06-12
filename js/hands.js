@@ -5,7 +5,6 @@
 
 import { scene, camera, raycaster } from './scene.js';
 import { clay } from './clay.js';
-import { brush, sculptAt } from './sculpt.js';
 import { cursorMesh } from './pointer.js';
 
 const videoEl = document.getElementById('video');
@@ -20,9 +19,20 @@ let handActive = false;
 const FINGER_TIPS = [4, 8, 12, 16, 20];
 const FINGER_MIDS = [3, 7, 11, 15, 19];
 const PALM_POINTS = [0, 1, 5, 9, 13, 17];
-const TIP_RADIUS = 0.25;
-const MID_RADIUS = 0.20;
-const PALM_RADIUS = 0.35;
+
+// Sphere-collider radii for contact (spec §5.3). Kept close to the visible
+// skeleton so the clay dents where the hand visually touches it.
+const TIP_RADIUS = 0.16;
+const MID_RADIUS = 0.13;
+const PALM_RADIUS = 0.30;
+
+// Wrist + tips + the joints just below the tips: a finger plows through clay
+// along its length, not only at the tip.
+const CONTACT_JOINTS = [0, ...FINGER_TIPS, ...FINGER_MIDS];
+
+// Fraction of the penetration corrected per frame. 1.0 would be a hard shell;
+// 0.6 converges in ~3 frames and reads as viscous clay.
+const CONTACT_STIFFNESS = 0.6;
 
 // 3D hand skeleton bones (one independent group per hand → two hands).
 const HAND_CONNECTIONS_3D = [
@@ -103,10 +113,11 @@ const smoothHandScale = [1.0, 1.0];
 
 const SPHERE_R = 2.0;
 const DEPTH_CFG = {
-  baseOffset: 0.3, // offset from the surface (positive = deeper)
-  gain: 3.2,       // distance gained per +1 of handScale
-  relZGain: 3.0,   // amplification of per-joint relative depth (lm.z)
-  scaleEMA: 0.7,   // depth smoothing
+  baseOffset: -0.8, // offset from the surface (positive = deeper); negative
+                    // default so the calibrated hand hovers in front of the clay
+  gain: 4.0,        // world distance per unit of reciprocal hand scale
+  relZGain: 3.0,    // amplification of per-joint relative depth (lm.z)
+  scaleEMA: 0.45,   // depth smoothing — light, so depth does not visibly lag
 };
 export { DEPTH_CFG };
 
@@ -168,9 +179,12 @@ function lmToWorld3D(lm, idx, handScale) {
   // lm.z is wrist-relative and more negative nearer the camera → nearer fingers
   // reach deeper in.
   const relZ = lm[idx].z - lm[0].z;
-  const dist = surfaceDist + DEPTH_CFG.baseOffset
-    + (handScale - 1.0) * DEPTH_CFG.gain
-    - relZ * DEPTH_CFG.relZGain;
+  // Reciprocal law: apparent size ∝ 1/distance, so (1 − 1/scale) gives equal
+  // world motion for equal physical motion near and far (a linear map is
+  // over-sensitive near, under-sensitive far).
+  const dist = Math.max(0.3, surfaceDist + DEPTH_CFG.baseOffset
+    + (1 - 1 / handScale) * DEPTH_CFG.gain
+    - relZ * DEPTH_CFG.relZGain);
 
   return raycaster.ray.origin.clone()
     .addScaledVector(raycaster.ray.direction, dist);
@@ -210,9 +224,6 @@ function checkInsideMesh(worldPt) {
   };
 }
 
-// Previous-frame joint world positions (shared by collision + velocity).
-const lastLmWorld = {};
-
 function updateHandMesh(lm, handIdx) {
   if (handIdx >= handGroups.length) return;
   const { group, joints, bones } = handGroups[handIdx];
@@ -229,8 +240,8 @@ function updateHandMesh(lm, handIdx) {
   // not grow. shrink cancels both the larger apparent size (handScale) and
   // the deeper projection distance (wristDist vs the calibrated refDist).
   const camDist = camera.position.length();
-  const refDist = camDist - SPHERE_R + DEPTH_CFG.baseOffset;
-  const wristDist = Math.max(0.5, refDist + (handScale - 1) * DEPTH_CFG.gain);
+  const refDist = Math.max(0.5, camDist - SPHERE_R + DEPTH_CFG.baseOffset);
+  const wristDist = Math.max(0.5, refDist + (1 - 1 / handScale) * DEPTH_CFG.gain);
   const shrink = Math.max(0.25, Math.min(2.0, refDist / (handScale * wristDist)));
 
   const wristPos = lmToWorld3D(lm, 0, handScale);
@@ -288,46 +299,62 @@ function updateHandMesh(lm, handIdx) {
     }
   }
 
-  // ── Push: penetration-based. Sinking a joint into the clay injects force
-  // proportional to penetration, so the surface pushes back (real contact feel).
-  const SCULPT_POINTS = [0, 4, 8, 12, 16, 20];
+  // ── Contact: positional collision. Vertices inside a joint's sphere collider
+  // are projected onto the collider surface and their into-collider velocity is
+  // cancelled, so the clay conforms to the hand's shape and *rests* against a
+  // stationary hand. (The previous velocity injection kept flowing forever
+  // under a still hand — nothing ever constrained the surface to the hand.)
   const touching = {}; // for display: which joints are in contact
 
   if (!grabState[handIdx]) {
-    for (const i of SCULPT_POINTS) {
-      const jPos = positions3D[i];
-      const check = checkInsideMesh(jPos);
-      if (!check.inside) {
-        lastLmWorld[`${handIdx}_${i}`] = jPos.clone();
-        continue;
+    const posAttr = clay.geometry.attributes.position;
+    const arr = posAttr.array;
+    const count = posAttr.count;
+    const vel = clay.vel;
+    let touchedAny = false;
+
+    for (const j of CONTACT_JOINTS) {
+      const c = positions3D[j];
+      const r = FINGER_TIPS.includes(j) ? TIP_RADIUS
+        : FINGER_MIDS.includes(j) ? MID_RADIUS : PALM_RADIUS;
+      const r2 = r * r;
+
+      for (let i = 0; i < count; i++) {
+        const dx = arr[i * 3] - c.x, dy = arr[i * 3 + 1] - c.y, dz = arr[i * 3 + 2] - c.z;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= r2) continue;
+
+        const d = Math.sqrt(d2);
+        let nx, ny, nz;
+        if (d > 1e-5) {
+          nx = dx / d; ny = dy / d; nz = dz / d;
+        } else {
+          // Vertex at the collider center: push radially out from the mesh
+          // origin (any consistent direction works; this one never traps it).
+          const cl = Math.hypot(c.x, c.y, c.z) || 1;
+          nx = c.x / cl; ny = c.y / cl; nz = c.z / cl;
+        }
+
+        const push = (r - d) * CONTACT_STIFFNESS;
+        arr[i * 3] += nx * push;
+        arr[i * 3 + 1] += ny * push;
+        arr[i * 3 + 2] += nz * push;
+
+        // Cancel the velocity component still heading into the collider, so
+        // the vertex settles against the hand instead of fighting it.
+        const vn = vel[i * 3] * nx + vel[i * 3 + 1] * ny + vel[i * 3 + 2] * nz;
+        if (vn < 0) {
+          vel[i * 3] -= nx * vn;
+          vel[i * 3 + 1] -= ny * vn;
+          vel[i * 3 + 2] -= nz * vn;
+        }
+
+        touching[j] = true;
+        touchedAny = true;
       }
-      touching[i] = true;
-
-      // Force direction: joint motion (else inward surface normal).
-      const key = `${handIdx}_${i}`;
-      const prev = lastLmWorld[key];
-      let forceDir;
-      if (prev) {
-        const dx = jPos.x - prev.x, dy = jPos.y - prev.y, dz = jPos.z - prev.z;
-        const len = Math.hypot(dx, dy, dz);
-        forceDir = len > 0.002
-          ? new THREE.Vector3(dx / len, dy / len, dz / len)
-          : check.surfaceNormal.clone().negate();
-      } else {
-        forceDir = check.surfaceNormal.clone().negate();
-      }
-      lastLmWorld[key] = jPos.clone();
-
-      const isTip = FINGER_TIPS.includes(i);
-      const jR = isTip ? TIP_RADIUS : PALM_RADIUS;
-      const penForce = Math.min(check.penetration * 0.5, 0.1);
-      const jStr = penForce * (isTip ? 1.2 : 0.6);
-
-      const savedRadius = brush.radius;
-      brush.radius = jR;
-      sculptAt(jPos, forceDir, jStr);
-      brush.radius = savedRadius;
     }
+
+    if (touchedAny) posAttr.needsUpdate = true;
   }
 
   // ── 3D display ──
