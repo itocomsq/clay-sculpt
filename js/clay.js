@@ -49,3 +49,7 @@ export function createMesh() {
 export function resetMesh() {
   createMesh();
 }
+
+export function setClayColor(hex) {
+  if (clay.mesh) clay.mesh.material.color.setHex(parseInt(hex, 16));
+}

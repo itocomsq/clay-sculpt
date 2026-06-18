@@ -2,7 +2,7 @@
 // declare intent via data-* attributes and sliders are bound from one table.
 
 import { brush, setTool } from './sculpt.js';
-import { resetMesh } from './clay.js';
+import { resetMesh, setClayColor } from './clay.js';
 import { PHYS, applyPreset } from './physics.js';
 import { DEPTH_CFG, startCalibration } from './hands.js';
 
@@ -11,14 +11,10 @@ import { DEPTH_CFG, startCalibration } from './hands.js';
 const SLIDER_BINDINGS = [
   { id: 'p-radius', out: 'v-radius', set: v => { brush.radius = v; } },
   { id: 'p-strength', out: 'v-strength', set: v => { brush.strength = v; } },
-  { id: 'p-falloff', out: 'v-falloff', set: v => { brush.falloff = v; } },
   { id: 'p-spring', out: 'v-spring', set: v => { PHYS.springK = v; } },
   { id: 'p-rest', out: 'v-rest', set: v => { PHYS.restK = v; } },
   { id: 'p-damp', out: 'v-damp', set: v => { PHYS.damping = v; } },
   { id: 'p-plastic', out: 'v-plastic', set: v => { PHYS.plasticity = v; } },
-  { id: 'p-dbase', out: 'v-dbase', set: v => { DEPTH_CFG.baseOffset = v; } },
-  { id: 'p-dgain', out: 'v-dgain', set: v => { DEPTH_CFG.gain = v; } },
-  { id: 'p-drelz', out: 'v-drelz', set: v => { DEPTH_CFG.relZGain = v; } },
 ];
 
 // Material sliders re-synced when a preset is applied.
@@ -94,6 +90,14 @@ export function initUI() {
   document.querySelectorAll('[data-action]').forEach(btn => {
     const fn = ACTIONS[btn.dataset.action];
     if (fn) btn.addEventListener('click', () => fn(btn));
+  });
+
+  document.querySelectorAll('[data-color]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-color]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      setClayColor(btn.dataset.color);
+    });
   });
 
   // Close the help modal when the backdrop (not its content) is clicked.

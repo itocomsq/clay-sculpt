@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="ブラウザで遊べるハンドトラッキング3Dねんど。手をかざして押したり、つまんで引っぱったり。">
-<meta name="theme-color" content="#241733">
+<meta name="theme-color" content="#1c1815">
 <!-- OGP (social share card) -->
 <meta property="og:title" content="Clay Sculpt — 手でこねる3Dねんど">
 <meta property="og:description" content="ブラウザの中のねんどを、手で押したりつまんだりして遊ぼう。">
@@ -25,7 +25,8 @@
   <button class="mode-btn tool-push active" id="btn-push" data-tool="push">押す</button>
   <button class="mode-btn tool-pull" id="btn-pull" data-tool="pull">引く</button>
   <button class="mode-btn tool-smooth" id="btn-smooth" data-tool="smooth">ならす</button>
-  <button class="mode-btn" data-action="reset">リセット</button>
+  <div class="header-sep"></div>
+  <button class="mode-btn mode-btn--danger" data-action="reset">リセット</button>
   <div id="status">カメラ: 接続中...</div>
   <button class="mode-btn" id="btn-camtoggle" data-action="toggle-camera">カメラ</button>
   <button class="mode-btn mode-btn--help" data-action="help-open">?</button>
@@ -82,11 +83,6 @@
       <input type="range" id="p-strength" min="0.01" max="0.15" step="0.005" value="0.04">
       <span id="v-strength">0.040</span>
     </div>
-    <div class="param-row">
-      <label>ぼかし</label>
-      <input type="range" id="p-falloff" min="1" max="5" step="0.5" value="2.5">
-      <span id="v-falloff">2.5</span>
-    </div>
 
     <h3 class="section-gap">素材</h3>
     <div class="param-row param-row--presets">
@@ -94,43 +90,40 @@
       <button class="mode-btn mode-btn--flex preset-slime" data-preset="slime">スライム</button>
       <button class="mode-btn mode-btn--flex preset-rubber" data-preset="rubber">ゴム</button>
     </div>
-    <div class="param-row">
-      <label>ハリ</label>
-      <input type="range" id="p-spring" min="1" max="20" step="0.5" value="8">
-      <span id="v-spring">8.0</span>
-    </div>
-    <div class="param-row">
-      <label>弾力</label>
-      <input type="range" id="p-rest" min="0" max="15" step="0.5" value="4">
-      <span id="v-rest">4.0</span>
-    </div>
-    <div class="param-row">
-      <label>ゆれ止め</label>
-      <input type="range" id="p-damp" min="0.6" max="0.99" step="0.01" value="0.82">
-      <span id="v-damp">0.82</span>
-    </div>
-    <div class="param-row">
-      <label>形のこり</label>
-      <input type="range" id="p-plastic" min="0" max="0.3" step="0.01" value="0.06">
-      <span id="v-plastic">0.06</span>
+
+    <h3 class="section-gap">ねんどの色</h3>
+    <div class="swatch-row">
+      <button class="swatch active" data-color="e09060" title="テラコッタ" style="--c:#e09060"></button>
+      <button class="swatch" data-color="ddd5c5" title="白磁"      style="--c:#ddd5c5"></button>
+      <button class="swatch" data-color="5c5250" title="チャコール" style="--c:#5c5250"></button>
+      <button class="swatch" data-color="cc8878" title="ローズ"    style="--c:#cc8878"></button>
+      <button class="swatch" data-color="c4aa80" title="サンド"    style="--c:#c4aa80"></button>
+      <button class="swatch" data-color="809080" title="セージ"    style="--c:#809080"></button>
     </div>
 
-    <h3 class="section-gap">手の奥行き（調整用）</h3>
-    <div class="param-row">
-      <label>位置</label>
-      <input type="range" id="p-dbase" min="-2" max="2" step="0.1" value="-0.8">
-      <span id="v-dbase">-0.8</span>
-    </div>
-    <div class="param-row">
-      <label>感度</label>
-      <input type="range" id="p-dgain" min="0.5" max="8" step="0.1" value="4.0">
-      <span id="v-dgain">4.0</span>
-    </div>
-    <div class="param-row">
-      <label>指の奥行き</label>
-      <input type="range" id="p-drelz" min="0" max="8" step="0.5" value="3.0">
-      <span id="v-drelz">3.0</span>
-    </div>
+    <details class="advanced-section">
+      <summary>上級者向け ▸</summary>
+      <div class="param-row">
+        <label>ハリ</label>
+        <input type="range" id="p-spring" min="1" max="20" step="0.5" value="8">
+        <span id="v-spring">8.0</span>
+      </div>
+      <div class="param-row">
+        <label>弾力</label>
+        <input type="range" id="p-rest" min="0" max="15" step="0.5" value="4">
+        <span id="v-rest">4.0</span>
+      </div>
+      <div class="param-row">
+        <label>ゆれ止め</label>
+        <input type="range" id="p-damp" min="0.6" max="0.99" step="0.01" value="0.82">
+        <span id="v-damp">0.82</span>
+      </div>
+      <div class="param-row">
+        <label>形のこり</label>
+        <input type="range" id="p-plastic" min="0" max="0.3" step="0.01" value="0.06">
+        <span id="v-plastic">0.06</span>
+      </div>
+    </details>
     </div>
   </div>
 
